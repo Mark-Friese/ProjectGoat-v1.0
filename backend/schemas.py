@@ -202,3 +202,21 @@ class Issue(IssueBase):
     class Config:
         from_attributes = True
         populate_by_name = True
+
+
+# ==================== Authentication Schemas ====================
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class LoginResponse(BaseModel):
+    session_id: str = Field(alias="sessionId")
+    user: User
+
+    class Config:
+        populate_by_name = True
+
+class SessionResponse(BaseModel):
+    user: Optional[User] = None
+    authenticated: bool

@@ -6,6 +6,8 @@ import * as userService from './services/users';
 import * as projectService from './services/projects';
 import * as riskService from './services/risks';
 import * as issueService from './services/issues';
+import * as authService from './services/auth';
+import { LoginScreen } from './components/LoginScreen';
 import { DashboardView } from './components/DashboardView';
 import { KanbanView } from './components/KanbanView';
 import { ListView } from './components/ListView';
@@ -28,6 +30,7 @@ import {
   Plus,
   Menu,
   X,
+  LogOut,
 } from 'lucide-react';
 
 type View = 'dashboard' | 'kanban' | 'list' | 'gantt' | 'calendar' | 'workload' | 'team' | 'reports';
@@ -56,41 +59,56 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [risks, setRisks] = useState<Risk[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch initial data from API
+  // Check for session and fetch initial data
   useEffect(() => {
-    const fetchData = async () => {
+    const initializeApp = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        const [tasksData, usersData, projectsData, risksData, issuesData] = await Promise.all([
-          taskService.getTasks(),
-          userService.getUsers(),
-          projectService.getProjects(),
-          riskService.getRisks(),
-          issueService.getIssues(),
-        ]);
+        // Check for existing session
+        const sessionResponse = await authService.checkSession();
 
-        setTasks(tasksData);
-        setUsers(usersData);
-        setProjects(projectsData);
-        setRisks(risksData);
-        setIssues(issuesData);
+        if (sessionResponse.authenticated && sessionResponse.user) {
+          // User is authenticated
+          setCurrentUser(sessionResponse.user);
+          setIsAuthenticated(true);
+
+          // Fetch all data
+          const [tasksData, usersData, projectsData, risksData, issuesData] = await Promise.all([
+            taskService.getTasks(),
+            userService.getUsers(),
+            projectService.getProjects(),
+            riskService.getRisks(),
+            issueService.getIssues(),
+          ]);
+
+          setTasks(tasksData);
+          setUsers(usersData);
+          setProjects(projectsData);
+          setRisks(risksData);
+          setIssues(issuesData);
+        } else {
+          // Not authenticated - show login screen
+          setIsAuthenticated(false);
+        }
       } catch (err) {
-        console.error('Failed to fetch data:', err);
+        console.error('Failed to initialize app:', err);
         setError('Failed to load data from server. Please ensure the backend is running.');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchData();
+    initializeApp();
   }, []);
 
   const handleTaskClick = (task: Task) => {
@@ -148,6 +166,47 @@ export default function App() {
 
   const handleUserUpdate = (updatedUser: User) => {
     setUsers(users.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+
+    // Update current user if it's the same user
+    if (currentUser && updatedUser.id === currentUser.id) {
+      setCurrentUser(updatedUser);
+    }
+  };
+
+  const handleLoginSuccess = async (user: User) => {
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+
+    // Fetch all data after successful login
+    try {
+      const [tasksData, usersData, projectsData, risksData, issuesData] = await Promise.all([
+        taskService.getTasks(),
+        userService.getUsers(),
+        projectService.getProjects(),
+        riskService.getRisks(),
+        issueService.getIssues(),
+      ]);
+
+      setTasks(tasksData);
+      setUsers(usersData);
+      setProjects(projectsData);
+      setRisks(risksData);
+      setIssues(issuesData);
+    } catch (err) {
+      console.error('Failed to fetch data after login:', err);
+      setError('Failed to load data. Please refresh the page.');
+    }
+  };
+
+  const handleLogout = async () => {
+    await authService.logout();
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+    setTasks([]);
+    setUsers([]);
+    setProjects([]);
+    setRisks([]);
+    setIssues([]);
   };
 
   const renderView = () => {
@@ -206,6 +265,11 @@ export default function App() {
         </div>
       </div>
     );
+  }
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
@@ -290,27 +354,36 @@ export default function App() {
         )}
 
         {/* User Info */}
-        {users.length > 0 && (
+        {currentUser && (
           <div className="p-4 border-t">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mb-3">
               <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white">
-                {users[0].name.split(' ').map((n) => n[0]).join('')}
+                {currentUser.name.split(' ').map((n) => n[0]).join('')}
               </div>
               <div className="flex-1">
-                <p className="text-sm">{users[0].name}</p>
+                <p className="text-sm">{currentUser.name}</p>
                 <Badge
                   className={`text-xs ${
-                    users[0].role === 'admin'
+                    currentUser.role === 'admin'
                       ? 'bg-purple-100 text-purple-800'
-                      : users[0].role === 'member'
+                      : currentUser.role === 'member'
                       ? 'bg-blue-100 text-blue-800'
                       : 'bg-gray-100 text-gray-800'
                   }`}
                 >
-                  {users[0].role.charAt(0).toUpperCase() + users[0].role.slice(1)}
+                  {currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)}
                 </Badge>
               </div>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={handleLogout}
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
           </div>
         )}
       </aside>

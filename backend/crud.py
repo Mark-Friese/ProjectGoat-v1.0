@@ -18,6 +18,9 @@ def get_users(db: Session) -> List[models.User]:
 def get_user(db: Session, user_id: str) -> Optional[models.User]:
     return db.query(models.User).filter(models.User.id == user_id).first()
 
+def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
+    return db.query(models.User).filter(models.User.email == email).first()
+
 def create_user(db: Session, user: schemas.UserCreate) -> models.User:
     db_user = models.User(**user.model_dump())
     db.add(db_user)

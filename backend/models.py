@@ -16,6 +16,7 @@ class User(Base):
     role = Column(String(20), nullable=False)  # admin, member, viewer
     avatar = Column(Text, nullable=True)
     availability = Column(Boolean, nullable=False, default=True)
+    password_hash = Column(Text, nullable=True)  # Hashed password for authentication
 
     # Relationships
     assigned_tasks = relationship("Task", back_populates="assignee", foreign_keys="Task.assignee_id")

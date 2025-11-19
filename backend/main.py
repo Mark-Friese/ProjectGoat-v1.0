@@ -13,6 +13,7 @@ import json
 import crud
 import models
 import schemas
+import auth
 from database import engine, get_db
 
 # Create database tables
@@ -375,6 +376,104 @@ def delete_issue(issue_id: str, db: Session = Depends(get_db)):
     if not success:
         raise HTTPException(status_code=404, detail=f"Issue with id '{issue_id}' not found")
     return None
+
+
+# ==================== Authentication Endpoints ====================
+
+@app.post("/api/auth/login", response_model=schemas.LoginResponse)
+def login(request: schemas.LoginRequest, db: Session = Depends(get_db)):
+    """Authenticate user and create session"""
+    # Find user by email
+    user = crud.get_user_by_email(db, request.email)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Verify password
+    if not auth.verify_password(request.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    # Create session
+    session_id = auth.create_session(db, user.id)
+
+    # Set as current user
+    auth.set_current_user_setting(db, user.id)
+
+    # Convert to response
+    return schemas.LoginResponse(
+        sessionId=session_id,
+        user=schemas.User(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            role=user.role,
+            avatar=user.avatar,
+            availability=user.availability
+        )
+    )
+
+
+@app.get("/api/auth/session", response_model=schemas.SessionResponse)
+def check_session(session_id: Optional[str] = None, db: Session = Depends(get_db)):
+    """Check if there's a valid session"""
+    user_id = None
+
+    # Try to get user from session ID
+    if session_id:
+        user_id = auth.get_session_user(db, session_id)
+
+    # If no session, try to get current user from settings
+    if not user_id:
+        user_id = auth.get_current_user_setting(db)
+
+    if not user_id:
+        return schemas.SessionResponse(user=None, authenticated=False)
+
+    # Get user details
+    user = crud.get_user(db, user_id)
+    if not user:
+        return schemas.SessionResponse(user=None, authenticated=False)
+
+    return schemas.SessionResponse(
+        user=schemas.User(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            role=user.role,
+            avatar=user.avatar,
+            availability=user.availability
+        ),
+        authenticated=True
+    )
+
+
+@app.post("/api/auth/logout")
+def logout(session_id: str, db: Session = Depends(get_db)):
+    """Logout user and delete session"""
+    auth.delete_session(db, session_id)
+    return {"message": "Logged out successfully"}
+
+
+# ==================== Settings Endpoints ====================
+
+@app.get("/api/settings/current-user")
+def get_current_user(db: Session = Depends(get_db)):
+    """Get the current user ID from settings"""
+    user_id = auth.get_current_user_setting(db)
+    if not user_id:
+        raise HTTPException(status_code=404, detail="No current user set")
+    return {"userId": user_id}
+
+
+@app.put("/api/settings/current-user")
+def set_current_user(user_id: str, db: Session = Depends(get_db)):
+    """Set the current user ID in settings"""
+    # Verify user exists
+    user = crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail=f"User with id '{user_id}' not found")
+
+    auth.set_current_user_setting(db, user_id)
+    return {"message": "Current user updated", "userId": user_id}
 
 
 # ==================== Serve Frontend (Production) ====================

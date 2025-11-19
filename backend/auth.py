@@ -1,0 +1,108 @@
+"""
+Authentication and Session Management
+Handles password hashing, session creation, and validation
+"""
+import bcrypt
+import secrets
+from datetime import datetime, timedelta
+from typing import Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+
+
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt"""
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify a password against its hash"""
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
+
+def create_session(db: Session, user_id: str, expires_days: int = 30) -> str:
+    """Create a new session for a user"""
+    session_id = secrets.token_urlsafe(32)
+    created_at = datetime.now()
+    expires_at = created_at + timedelta(days=expires_days)
+
+    db.execute(
+        text("""
+            INSERT INTO sessions (id, user_id, created_at, expires_at, last_accessed)
+            VALUES (:id, :user_id, :created_at, :expires_at, :last_accessed)
+        """),
+        {
+            "id": session_id,
+            "user_id": user_id,
+            "created_at": created_at.isoformat(),
+            "expires_at": expires_at.isoformat(),
+            "last_accessed": created_at.isoformat()
+        }
+    )
+    db.commit()
+
+    return session_id
+
+
+def get_session_user(db: Session, session_id: str) -> Optional[str]:
+    """Get user ID from a session if it's valid and not expired"""
+    result = db.execute(
+        text("""
+            SELECT user_id, expires_at
+            FROM sessions
+            WHERE id = :session_id
+        """),
+        {"session_id": session_id}
+    ).fetchone()
+
+    if not result:
+        return None
+
+    user_id, expires_at_str = result
+    expires_at = datetime.fromisoformat(expires_at_str)
+
+    if datetime.now() > expires_at:
+        # Session expired
+        delete_session(db, session_id)
+        return None
+
+    # Update last accessed time
+    db.execute(
+        text("UPDATE sessions SET last_accessed = :now WHERE id = :session_id"),
+        {"now": datetime.now().isoformat(), "session_id": session_id}
+    )
+    db.commit()
+
+    return user_id
+
+
+def delete_session(db: Session, session_id: str):
+    """Delete a session"""
+    db.execute(
+        text("DELETE FROM sessions WHERE id = :session_id"),
+        {"session_id": session_id}
+    )
+    db.commit()
+
+
+def get_current_user_setting(db: Session) -> Optional[str]:
+    """Get the current user ID from app settings"""
+    result = db.execute(
+        text("SELECT value FROM app_settings WHERE key = 'current_user_id'")
+    ).fetchone()
+
+    return result[0] if result else None
+
+
+def set_current_user_setting(db: Session, user_id: str):
+    """Set the current user ID in app settings"""
+    db.execute(
+        text("""
+            INSERT OR REPLACE INTO app_settings (key, value, updated_at)
+            VALUES ('current_user_id', :user_id, :updated_at)
+        """),
+        {"user_id": user_id, "updated_at": datetime.now().isoformat()}
+    )
+    db.commit()
