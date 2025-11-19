@@ -1,16 +1,65 @@
-import { User, Task } from '../types';
+import { useState, useEffect } from 'react';
+import { User, Task, UserRole } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Users, Mail, Shield, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui/select';
+import { Users, Mail, Shield, CheckCircle, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import * as userService from '../services/users';
 
 interface TeamViewProps {
   users: User[];
   tasks: Task[];
+  onUserUpdate?: (user: User) => void;
 }
 
-export function TeamView({ users, tasks }: TeamViewProps) {
+export function TeamView({ users, tasks, onUserUpdate }: TeamViewProps) {
+  const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
+  const [localUsers, setLocalUsers] = useState<User[]>(users);
+
+  // Update local users when props change
+  useEffect(() => {
+    setLocalUsers(users);
+  }, [users]);
+
+  const handleRoleChange = async (userId: string, newRole: UserRole) => {
+    const user = localUsers.find((u) => u.id === userId);
+    if (!user) return;
+
+    try {
+      setUpdatingUserId(userId);
+
+      // Backend requires all fields for update, not just the changed field
+      const updatedUser = await userService.updateUser(userId, {
+        name: user.name,
+        email: user.email,
+        role: newRole,
+        avatar: user.avatar,
+        availability: user.availability,
+      });
+
+      // Update local state
+      setLocalUsers(localUsers.map((u) => (u.id === userId ? updatedUser : u)));
+
+      // Notify parent component
+      if (onUserUpdate) {
+        onUserUpdate(updatedUser);
+      }
+    } catch (error) {
+      console.error('Failed to update user role:', error);
+      alert('Failed to update role. Please try again.');
+    } finally {
+      setUpdatingUserId(null);
+    }
+  };
+
   const getUserStats = (userId: string) => {
     const userTasks = tasks.filter((t) => t.assigneeId === userId);
     return {
@@ -59,7 +108,7 @@ export function TeamView({ users, tasks }: TeamViewProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600">Total Members</p>
-                <p className="text-3xl mt-2">{users.length}</p>
+                <p className="text-3xl mt-2">{localUsers.length}</p>
               </div>
               <Users className="w-12 h-12 text-blue-500 opacity-20" />
             </div>
@@ -71,7 +120,7 @@ export function TeamView({ users, tasks }: TeamViewProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600">Admins</p>
-                <p className="text-3xl mt-2">{users.filter((u) => u.role === 'admin').length}</p>
+                <p className="text-3xl mt-2">{localUsers.filter((u) => u.role === 'admin').length}</p>
               </div>
               <Shield className="w-12 h-12 text-purple-500 opacity-20" />
             </div>
@@ -83,7 +132,7 @@ export function TeamView({ users, tasks }: TeamViewProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600">Active Members</p>
-                <p className="text-3xl mt-2">{users.filter((u) => u.availability).length}</p>
+                <p className="text-3xl mt-2">{localUsers.filter((u) => u.availability).length}</p>
               </div>
               <CheckCircle className="w-12 h-12 text-green-500 opacity-20" />
             </div>
@@ -95,7 +144,7 @@ export function TeamView({ users, tasks }: TeamViewProps) {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600">Unavailable</p>
-                <p className="text-3xl mt-2">{users.filter((u) => !u.availability).length}</p>
+                <p className="text-3xl mt-2">{localUsers.filter((u) => !u.availability).length}</p>
               </div>
               <Clock className="w-12 h-12 text-orange-500 opacity-20" />
             </div>
@@ -105,7 +154,7 @@ export function TeamView({ users, tasks }: TeamViewProps) {
 
       {/* Team Member Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {users.map((user) => {
+        {localUsers.map((user) => {
           const stats = getUserStats(user.id);
           const completionRate = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
 
@@ -129,7 +178,47 @@ export function TeamView({ users, tasks }: TeamViewProps) {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
-                      {getRoleBadge(user.role)}
+                      {/* Role Selector */}
+                      <div className="relative">
+                        <Select
+                          value={user.role}
+                          onValueChange={(value) => handleRoleChange(user.id, value as UserRole)}
+                          disabled={updatingUserId === user.id}
+                        >
+                          <SelectTrigger className="h-7 text-sm min-w-[120px]">
+                            <div className="flex items-center gap-1">
+                              {updatingUserId === user.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : user.role === 'admin' ? (
+                                <Shield className="w-3 h-3" />
+                              ) : (
+                                <Users className="w-3 h-3" />
+                              )}
+                              <SelectValue />
+                            </div>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">
+                              <div className="flex items-center gap-2">
+                                <Shield className="w-3 h-3 text-purple-600" />
+                                Admin
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="member">
+                              <div className="flex items-center gap-2">
+                                <Users className="w-3 h-3 text-blue-600" />
+                                Member
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="viewer">
+                              <div className="flex items-center gap-2">
+                                <Users className="w-3 h-3 text-gray-600" />
+                                Viewer
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       {!user.availability && (
                         <Badge variant="outline" className="bg-orange-100 text-orange-800">
                           Out of Office

@@ -85,3 +85,4 @@ wheels/
 .cache/
 .parcel-cache/
 .vite/
+*.db

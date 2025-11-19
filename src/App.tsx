@@ -1,7 +1,11 @@
-import { useState } from 'react';
-import { Task, User, Project, TaskStatus } from './types';
+import { useState, useEffect } from 'react';
+import { Task, User, Project, TaskStatus, Risk, Issue } from './types';
 import logo from './assets/logo/project-goat-logo.png';
-import { mockTasks, mockUsers, mockProjects, mockRisks, mockIssues } from './data/mockData';
+import * as taskService from './services/tasks';
+import * as userService from './services/users';
+import * as projectService from './services/projects';
+import * as riskService from './services/risks';
+import * as issueService from './services/issues';
 import { DashboardView } from './components/DashboardView';
 import { KanbanView } from './components/KanbanView';
 import { ListView } from './components/ListView';
@@ -47,12 +51,47 @@ const navigationItems: NavigationItem[] = [
 
 export default function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
-  const [tasks, setTasks] = useState<Task[]>(mockTasks);
-  const [users] = useState<User[]>(mockUsers);
-  const [projects] = useState<Project[]>(mockProjects);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [risks, setRisks] = useState<Risk[]>([]);
+  const [issues, setIssues] = useState<Issue[]>([]);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch initial data from API
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const [tasksData, usersData, projectsData, risksData, issuesData] = await Promise.all([
+          taskService.getTasks(),
+          userService.getUsers(),
+          projectService.getProjects(),
+          riskService.getRisks(),
+          issueService.getIssues(),
+        ]);
+
+        setTasks(tasksData);
+        setUsers(usersData);
+        setProjects(projectsData);
+        setRisks(risksData);
+        setIssues(issuesData);
+      } catch (err) {
+        console.error('Failed to fetch data:', err);
+        setError('Failed to load data from server. Please ensure the backend is running.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
@@ -64,37 +103,51 @@ export default function App() {
     setIsTaskDialogOpen(true);
   };
 
-  const handleSaveTask = (taskData: Partial<Task>) => {
-    if (selectedTask) {
-      // Update existing task
-      setTasks(tasks.map((t) => (t.id === selectedTask.id ? { ...t, ...taskData } : t)));
-    } else {
-      // Create new task
-      const newTask: Task = {
-        id: `t${tasks.length + 1}`,
-        title: taskData.title || '',
-        description: taskData.description || '',
-        status: taskData.status || 'todo',
-        priority: taskData.priority || 'medium',
-        assigneeId: taskData.assigneeId,
-        startDate: taskData.startDate || new Date(),
-        dueDate: taskData.dueDate || new Date(),
-        progress: taskData.progress || 0,
-        tags: taskData.tags || [],
-        isBlocked: taskData.isBlocked || false,
-        blocker: taskData.blocker,
-        isMilestone: taskData.isMilestone || false,
-        dependencies: taskData.dependencies || [],
-        storyPoints: taskData.storyPoints,
-        comments: taskData.comments || [],
-        projectId: taskData.projectId || projects[0].id,
-      };
-      setTasks([...tasks, newTask]);
+  const handleSaveTask = async (taskData: Partial<Task>) => {
+    try {
+      if (selectedTask) {
+        // Update existing task
+        const updatedTask = await taskService.updateTask(selectedTask.id, taskData);
+        setTasks(tasks.map((t) => (t.id === selectedTask.id ? updatedTask : t)));
+      } else {
+        // Create new task
+        const newTaskData: Partial<Task> = {
+          title: taskData.title || '',
+          description: taskData.description || '',
+          status: taskData.status || 'todo',
+          priority: taskData.priority || 'medium',
+          assigneeId: taskData.assigneeId,
+          startDate: taskData.startDate || new Date(),
+          dueDate: taskData.dueDate || new Date(),
+          progress: taskData.progress || 0,
+          tags: taskData.tags || [],
+          isBlocked: taskData.isBlocked || false,
+          isMilestone: taskData.isMilestone || false,
+          dependencies: taskData.dependencies || [],
+          storyPoints: taskData.storyPoints,
+          projectId: taskData.projectId || (projects[0]?.id || 'p1'),
+        };
+        const createdTask = await taskService.createTask(newTaskData);
+        setTasks([...tasks, createdTask]);
+      }
+    } catch (err) {
+      console.error('Failed to save task:', err);
+      alert('Failed to save task. Please try again.');
     }
   };
 
-  const handleTaskStatusChange = (taskId: string, newStatus: TaskStatus) => {
-    setTasks(tasks.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
+  const handleTaskStatusChange = async (taskId: string, newStatus: TaskStatus) => {
+    try {
+      const updatedTask = await taskService.updateTaskStatus(taskId, newStatus);
+      setTasks(tasks.map((t: Task) => (t.id === taskId ? updatedTask : t)));
+    } catch (err) {
+      console.error('Failed to update task status:', err);
+      alert('Failed to update task status. Please try again.');
+    }
+  };
+
+  const handleUserUpdate = (updatedUser: User) => {
+    setUsers(users.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
   };
 
   const renderView = () => {
@@ -119,15 +172,41 @@ export default function App() {
       case 'workload':
         return <WorkloadView tasks={tasks} users={users} onTaskClick={handleTaskClick} />;
       case 'team':
-        return <TeamView users={users} tasks={tasks} />;
+        return <TeamView users={users} tasks={tasks} onUserUpdate={handleUserUpdate} />;
       case 'reports':
-        return <ReportsView tasks={tasks} users={users} risks={mockRisks} issues={mockIssues} />;
+        return <ReportsView tasks={tasks} users={users} risks={risks} issues={issues} />;
       default:
         return <DashboardView tasks={tasks} users={users} projects={projects} />;
     }
   };
 
-  const blockedTasksCount = tasks.filter((t) => t.isBlocked).length;
+  const blockedTasksCount = tasks.filter((t: Task) => t.isBlocked).length;
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading ProjectGoat...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="max-w-md text-center p-6 bg-white rounded-lg shadow-lg">
+          <div className="text-red-500 text-5xl mb-4">⚠️</div>
+          <h2 className="text-xl font-semibold mb-2">Connection Error</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Button onClick={() => window.location.reload()}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -211,17 +290,29 @@ export default function App() {
         )}
 
         {/* User Info */}
-        <div className="p-4 border-t">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white">
-              {users[0].name.split(' ').map((n) => n[0]).join('')}
-            </div>
-            <div className="flex-1">
-              <p className="text-sm">{users[0].name}</p>
-              <Badge className="text-xs bg-purple-100 text-purple-800">Admin</Badge>
+        {users.length > 0 && (
+          <div className="p-4 border-t">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white">
+                {users[0].name.split(' ').map((n) => n[0]).join('')}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm">{users[0].name}</p>
+                <Badge
+                  className={`text-xs ${
+                    users[0].role === 'admin'
+                      ? 'bg-purple-100 text-purple-800'
+                      : users[0].role === 'member'
+                      ? 'bg-blue-100 text-blue-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  {users[0].role.charAt(0).toUpperCase() + users[0].role.slice(1)}
+                </Badge>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </aside>
 
       {/* Main Content */}
