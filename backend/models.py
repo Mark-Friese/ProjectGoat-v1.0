@@ -32,6 +32,29 @@ class User(Base):
     comments = relationship("Comment", back_populates="user")
     owned_risks = relationship("Risk", back_populates="owner")
     assigned_issues = relationship("Issue", back_populates="assignee")
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserSession(Base):
+    """
+    User authentication sessions.
+    Note: Named 'UserSession' to avoid conflict with sqlalchemy.orm.Session
+    """
+    __tablename__ = "sessions"
+
+    id = Column(String(255), primary_key=True)
+    user_id = Column(String(50), ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    last_accessed = Column(DateTime, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    last_activity_at = Column(DateTime, nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    csrf_token = Column(String(255), nullable=True)
+
+    # Relationships
+    user = relationship("User", back_populates="sessions")
 
 
 class Project(Base):

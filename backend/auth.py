@@ -7,8 +7,8 @@ import secrets
 import re
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy.orm import Session as DBSession
+from models import UserSession
 
 # Session timeout configuration
 IDLE_TIMEOUT_MINUTES = 30  # Logout after 30 minutes of inactivity
@@ -27,60 +27,43 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
 
-def create_session(db: Session, user_id: str, expires_days: int = 30) -> str:
+def create_session(db: DBSession, user_id: str, expires_days: int = 30) -> str:
     """Create a new session for a user"""
     session_id = secrets.token_urlsafe(32)
     created_at = datetime.now()
     expires_at = created_at + timedelta(days=expires_days)
 
-    db.execute(
-        text("""
-            INSERT INTO sessions (
-                id, user_id, created_at, expires_at, last_accessed
-            )
-            VALUES (
-                :id, :user_id, :created_at, :expires_at, :last_accessed
-            )
-        """),
-        {
-            "id": session_id,
-            "user_id": user_id,
-            "created_at": created_at.isoformat(),
-            "expires_at": expires_at.isoformat(),
-            "last_accessed": created_at.isoformat()
-        }
+    session = UserSession(
+        id=session_id,
+        user_id=user_id,
+        created_at=created_at,
+        expires_at=expires_at,
+        last_accessed=created_at,
+        is_active=True,
+        last_activity_at=created_at
     )
+    db.add(session)
     db.commit()
 
     return session_id
 
 
-def get_session_user(db: Session, session_id: str) -> Optional[str]:
+def get_session_user(db: DBSession, session_id: str) -> Optional[str]:
     """Get user ID from a session if it's valid and not expired"""
-    result = db.execute(
-        text("""
-            SELECT user_id, expires_at, created_at, last_activity_at
-            FROM sessions
-            WHERE id = :session_id
-        """),
-        {"session_id": session_id}
-    ).fetchone()
+    session = db.query(UserSession).filter_by(id=session_id).first()
 
-    if not result:
+    if not session:
         return None
 
-    user_id, expires_at_str, created_at_str, last_activity_at_str = result
     now = datetime.now()
 
     # Check absolute expiration (30 days from creation)
-    expires_at = datetime.fromisoformat(expires_at_str)
-    if now > expires_at:
+    if now > session.expires_at:
         delete_session(db, session_id)
         return None
 
     # Check absolute timeout (8 hours from creation)
-    created_at = datetime.fromisoformat(created_at_str)
-    absolute_timeout = created_at + timedelta(
+    absolute_timeout = session.created_at + timedelta(
         hours=ABSOLUTE_TIMEOUT_HOURS
     )
     if now > absolute_timeout:
@@ -88,34 +71,33 @@ def get_session_user(db: Session, session_id: str) -> Optional[str]:
         return None
 
     # Check idle timeout (30 minutes since last activity)
-    if last_activity_at_str:
-        last_activity_at = datetime.fromisoformat(last_activity_at_str)
-        idle_timeout = last_activity_at + timedelta(minutes=IDLE_TIMEOUT_MINUTES)
+    if session.last_activity_at:
+        idle_timeout = session.last_activity_at + timedelta(
+            minutes=IDLE_TIMEOUT_MINUTES
+        )
         if now > idle_timeout:
             delete_session(db, session_id)
             return None
 
-    # Session is valid - update last accessed time (not last_activity_at, that's for middleware)
-    db.execute(
-        text("UPDATE sessions SET last_accessed = :now WHERE id = :session_id"),
-        {"now": now.isoformat(), "session_id": session_id}
-    )
+    # Session is valid - update last accessed time
+    # (not last_activity_at, that's for middleware)
+    session.last_accessed = now
     db.commit()
 
-    return user_id
+    return session.user_id
 
 
-def delete_session(db: Session, session_id: str):
+def delete_session(db: DBSession, session_id: str):
     """Delete a session"""
-    db.execute(
-        text("DELETE FROM sessions WHERE id = :session_id"),
-        {"session_id": session_id}
-    )
-    db.commit()
+    session = db.query(UserSession).filter_by(id=session_id).first()
+    if session:
+        db.delete(session)
+        db.commit()
 
 
-def get_current_user_setting(db: Session) -> Optional[str]:
+def get_current_user_setting(db: DBSession) -> Optional[str]:
     """Get the current user ID from app settings"""
+    from sqlalchemy import text
     result = db.execute(
         text("SELECT value FROM app_settings WHERE key = 'current_user_id'")
     ).fetchone()
@@ -123,8 +105,9 @@ def get_current_user_setting(db: Session) -> Optional[str]:
     return result[0] if result else None
 
 
-def set_current_user_setting(db: Session, user_id: str):
+def set_current_user_setting(db: DBSession, user_id: str):
     """Set the current user ID in app settings"""
+    from sqlalchemy import text
     db.execute(
         text("""
             INSERT OR REPLACE INTO app_settings (key, value, updated_at)
@@ -168,7 +151,7 @@ def validate_password_strength(password: str) -> Tuple[bool, str]:
 
 
 def invalidate_user_sessions(
-    db: Session,
+    db: DBSession,
     user_id: str,
     except_session_id: Optional[str] = None
 ):
@@ -180,18 +163,10 @@ def invalidate_user_sessions(
         user_id: User ID whose sessions to invalidate
         except_session_id: Optional session ID to keep active (current session)
     """
+    query = db.query(UserSession).filter_by(user_id=user_id)
+
     if except_session_id:
-        db.execute(
-            text("""
-                DELETE FROM sessions
-                WHERE user_id = :user_id
-                  AND id != :except_session_id
-            """),
-            {"user_id": user_id, "except_session_id": except_session_id}
-        )
-    else:
-        db.execute(
-            text("DELETE FROM sessions WHERE user_id = :user_id"),
-            {"user_id": user_id}
-        )
+        query = query.filter(UserSession.id != except_session_id)
+
+    query.delete(synchronize_session=False)
     db.commit()
