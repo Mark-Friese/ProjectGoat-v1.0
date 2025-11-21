@@ -70,7 +70,8 @@ src/
 │   ├── TaskDialog.tsx
 │   └── ui/             # Reusable UI components
 ├── services/           # API communication layer
-│   ├── api.ts          # Base API client
+│   ├── api.ts          # Base API client with CSRF & session handling
+│   ├── auth.ts         # Authentication API calls
 │   ├── tasks.ts        # Task API calls
 │   ├── users.ts        # User API calls
 │   └── projects.ts     # Project API calls
@@ -87,6 +88,10 @@ backend/
 ├── models.py           # SQLAlchemy ORM models
 ├── schemas.py          # Pydantic request/response schemas
 ├── crud.py             # Database operations
+├── auth.py             # Authentication & session management
+├── csrf.py             # CSRF protection middleware
+├── rate_limiter.py     # Login rate limiting
+├── migrations/         # Database migrations
 ├── init_db.py          # Database initialization
 └── requirements.txt    # Python dependencies
 ```
@@ -120,7 +125,7 @@ backend/
 - Resource-based URLs
 - HTTP methods: GET, POST, PUT, DELETE, PATCH
 - JSON request/response bodies
-- HTTP status codes: 200, 201, 400, 404, 500
+- HTTP status codes: 200, 201, 400, 401 (Unauthorized), 403 (Forbidden), 404, 429 (Rate Limited), 500
 
 ### Base URL
 - **Development:** `http://localhost:8000/api`
@@ -128,11 +133,13 @@ backend/
 
 ### Endpoints Structure
 ```
-/api/users          - User management
+/api/auth           - Authentication (login, logout, session, change-password)
+/api/users          - User management & profile
 /api/projects       - Project management
 /api/tasks          - Task management
 /api/risks          - Risk tracking
 /api/issues         - Issue tracking
+/api/settings       - Application settings
 ```
 
 ## Database Schema
@@ -166,16 +173,56 @@ run.py              # Startup script (starts backend, serves frontend)
 
 ## Security
 
-### Current (Local Only)
-- No authentication (single user, local machine)
+### Authentication & Session Management
+
+- **Password Security:**
+  - bcrypt password hashing with automatic salt generation
+  - Strong password requirements (8+ characters, uppercase, lowercase, number, special char)
+  - Password change functionality with current password verification
+  - Password change timestamp tracking
+
+- **Session Management:**
+  - Database-backed session storage (survives server restarts)
+  - Session timeouts:
+    - Idle timeout: 30 minutes of inactivity
+    - Absolute timeout: 8 hours from login
+    - 30-day maximum session expiration
+  - Session activity tracking via middleware
+  - Automatic session invalidation on password change (except current)
+  - Session includes IP address and user agent tracking
+
+- **CSRF Protection:**
+  - Database-backed CSRF tokens (token stored in sessions table)
+  - Automatic validation on all state-changing operations (POST/PUT/DELETE/PATCH)
+  - Token regeneration on password change
+  - Exempt endpoints: /api/auth/login, GET requests, /api/health
+  - Frontend automatically includes X-CSRF-Token header
+
+- **Rate Limiting:**
+  - Maximum 5 failed login attempts per 15-minute window
+  - Automatic 15-minute account lockout after exceeding limit
+  - Failed attempts tracked with IP address and user agent
+  - Automatic cleanup of old attempts on successful login
+  - Implemented in `rate_limiter.py` module
+
+- **Profile & Access Control:**
+  - Role-based access (admin, member, viewer)
+  - Users can view/edit their own profile (name, email)
+  - Users cannot change their own role (privilege escalation protection)
+  - Login history tracking (last 10 attempts with success/failure)
+
+### Network Security
+
 - CORS configured for localhost only
 - No external network exposure
+- Designed for internal work laptop use
 
-### Future (If Multi-User)
-- JWT authentication
-- Role-based access control
-- Password hashing
-- HTTPS
+### Future Considerations (If Multi-User/External)
+
+- HTTPS/TLS encryption
+- Additional role-based permissions
+- OAuth/SSO integration
+- Enhanced audit logging
 
 ## Performance Considerations
 

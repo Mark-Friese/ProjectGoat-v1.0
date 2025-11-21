@@ -15,6 +15,14 @@ User accounts and profiles
 | role | VARCHAR(20) | NOT NULL | Role: admin, member, viewer |
 | avatar | TEXT | NULLABLE | Avatar URL or base64 |
 | availability | BOOLEAN | NOT NULL, DEFAULT TRUE | User availability status |
+| password_hash | VARCHAR(255) | NOT NULL | bcrypt password hash |
+| is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Whether account is active |
+| must_change_password | BOOLEAN | NOT NULL, DEFAULT FALSE | Require password change on next login |
+| password_changed_at | DATETIME | NULLABLE | When password was last changed |
+| created_at | DATETIME | NOT NULL | When user was created |
+| last_login_at | DATETIME | NULLABLE | Last successful login |
+| failed_login_attempts | INTEGER | NOT NULL, DEFAULT 0 | Count of consecutive failed logins |
+| account_locked_until | DATETIME | NULLABLE | Account lockout expiration |
 
 **Indexes:**
 - `idx_users_email` ON email
@@ -154,6 +162,105 @@ Project issues
 
 ---
 
+### 9. sessions
+User authentication sessions
+
+| Column | Type | Constraints | Description |
+|--------|------|------------|-------------|
+| id | VARCHAR(255) | PRIMARY KEY | Unique session identifier (token) |
+| user_id | VARCHAR(50) | FOREIGN KEY (users.id), NOT NULL | User this session belongs to |
+| created_at | DATETIME | NOT NULL | When session was created |
+| expires_at | DATETIME | NOT NULL | Session expiration (30 days) |
+| last_accessed | DATETIME | NOT NULL | Last request timestamp (for idle timeout) |
+| is_active | BOOLEAN | NOT NULL, DEFAULT TRUE | Whether session is active |
+| last_activity_at | DATETIME | NOT NULL | Last activity (updated on each request) |
+| ip_address | VARCHAR(45) | NULLABLE | IP address of session creation |
+| user_agent | TEXT | NULLABLE | Browser user agent |
+| csrf_token | VARCHAR(255) | NULLABLE | CSRF token for this session |
+
+**Indexes:**
+
+- `idx_sessions_user` ON user_id
+- `idx_sessions_expires` ON expires_at
+- `idx_sessions_active` ON is_active
+
+---
+
+### 10. app_settings
+
+Application-wide settings
+
+| Column | Type | Constraints | Description |
+|--------|------|------------|-------------|
+| key | VARCHAR(100) | PRIMARY KEY | Setting key |
+| value | TEXT | NOT NULL | Setting value (JSON or plain text) |
+| updated_at | DATETIME | NOT NULL | When setting was last updated |
+
+**Note:** Used to store current_user_id for single-user mode
+
+---
+
+### 11. login_attempts
+
+Login attempt tracking for rate limiting and security
+
+| Column | Type | Constraints | Description |
+|--------|------|------------|-------------|
+| id | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique attempt identifier |
+| email | VARCHAR(200) | NOT NULL | Email used for login attempt |
+| ip_address | VARCHAR(45) | NULLABLE | IP address of attempt |
+| user_agent | TEXT | NULLABLE | Browser user agent |
+| attempted_at | DATETIME | NOT NULL | When attempt was made |
+| success | BOOLEAN | NOT NULL | Whether login succeeded |
+| failure_reason | VARCHAR(255) | NULLABLE | Reason for failure |
+
+**Indexes:**
+
+- `idx_login_attempts_email` ON email
+- `idx_login_attempts_time` ON attempted_at
+
+---
+
+### 12. user_permissions
+
+Role-based permissions (future use)
+
+| Column | Type | Constraints | Description |
+|--------|------|------------|-------------|
+| id | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique permission identifier |
+| role | VARCHAR(20) | NOT NULL | Role: admin, member, viewer |
+| resource | VARCHAR(50) | NOT NULL | Resource type (tasks, projects, etc.) |
+| action | VARCHAR(20) | NOT NULL | Action: create, read, update, delete |
+| allowed | BOOLEAN | NOT NULL, DEFAULT FALSE | Whether action is allowed |
+
+**Indexes:**
+
+- `idx_permissions_role` ON role
+- `idx_permissions_resource` ON resource
+
+---
+
+### 13. audit_log
+
+Audit trail for sensitive operations (future use)
+
+| Column | Type | Constraints | Description |
+|--------|------|------------|-------------|
+| id | INTEGER | PRIMARY KEY AUTOINCREMENT | Unique log entry identifier |
+| user_id | VARCHAR(50) | FOREIGN KEY (users.id), NULLABLE | User who performed action |
+| action | VARCHAR(100) | NOT NULL | Action performed |
+| target_user_id | VARCHAR(50) | FOREIGN KEY (users.id), NULLABLE | Target user (for user management) |
+| details | TEXT | NULLABLE | JSON details of action |
+| ip_address | VARCHAR(45) | NULLABLE | IP address |
+| timestamp | DATETIME | NOT NULL | When action occurred |
+
+**Indexes:**
+
+- `idx_audit_user` ON user_id
+- `idx_audit_timestamp` ON timestamp
+
+---
+
 ## Relationships
 
 ```
@@ -161,6 +268,9 @@ users (1) ──────────────▶ (N) tasks (assignee)
 users (1) ──────────────▶ (N) comments
 users (1) ──────────────▶ (N) risks (owner)
 users (1) ──────────────▶ (N) issues (assignee)
+users (1) ──────────────▶ (N) sessions
+users (1) ──────────────▶ (N) audit_log (user_id)
+users (1) ──────────────▶ (N) audit_log (target_user_id)
 
 projects (1) ────────────▶ (N) tasks
 
@@ -225,10 +335,15 @@ tasks (1) ───────────────▶ (N) tasks (parent_id,
 ## Sample Data
 
 ### Users
+
 ```sql
-INSERT INTO users VALUES
-('u1', 'Sarah Chen', 'sarah@example.com', 'admin', NULL, TRUE),
-('u2', 'Marcus Thompson', 'marcus@example.com', 'member', NULL, TRUE);
+-- Note: Password hashes are bcrypt hashes of "password123"
+INSERT INTO users (id, name, email, role, avatar, availability, password_hash,
+                   is_active, must_change_password, created_at) VALUES
+('u1', 'Sarah Chen', 'sarah@example.com', 'admin', NULL, TRUE,
+ '$2b$12$...', TRUE, FALSE, '2025-11-19 00:00:00'),
+('u2', 'Marcus Thompson', 'marcus@example.com', 'member', NULL, TRUE,
+ '$2b$12$...', TRUE, FALSE, '2025-11-19 00:00:00');
 ```
 
 ### Projects

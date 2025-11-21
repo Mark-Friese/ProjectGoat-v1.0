@@ -76,6 +76,34 @@
   - Browser data clears
 - Data stored in local SQLite database
 
+### 8. Authentication & Security
+
+- **User Authentication:**
+  - Email and password based login
+  - Secure password hashing with bcrypt
+  - Session-based authentication
+  - Logout functionality
+- **Session Management:**
+  - Idle timeout: 30 minutes of inactivity
+  - Absolute timeout: 8 hours from login
+  - Session activity tracking
+  - Warning dialog 2 minutes before timeout
+  - Automatic session invalidation on password change
+- **Password Security:**
+  - Strong password requirements (8+ chars, mixed case, numbers, special chars)
+  - Password change functionality
+  - Password change tracking
+- **Security Features:**
+  - CSRF protection on all state-changing operations
+  - Rate limiting: 5 failed attempts per 15 minutes
+  - Account lockout: 15 minutes after exceeding failed attempts
+  - IP address and user agent tracking
+- **Profile Management:**
+  - View and edit user profile (name, email)
+  - View login history (last 10 attempts)
+  - Role-based access display
+  - Account creation date tracking
+
 ## Non-Functional Requirements
 
 ### Performance
@@ -103,7 +131,7 @@
 See [CONSTRAINTS.md](./CONSTRAINTS.md) for detailed environment limitations
 
 ## Future Enhancements (Out of Scope - Phase 1)
-- User authentication/login
+
 - File attachments
 - Export to Excel/PDF
 - Email notifications

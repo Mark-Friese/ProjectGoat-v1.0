@@ -6,7 +6,7 @@ import { Input } from './ui/input';
 import { PasswordInput } from './ui/password-input';
 import { Label } from './ui/label';
 import * as authService from '../services/auth';
-import logo from '../assets/logo/project-goat-logo.png';
+import logo from '../assets/logo/project-goat-logo.svg';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: User) => void;

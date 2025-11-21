@@ -363,17 +363,37 @@ python backend/init_db.py
 ## Security Notes
 
 ### Current Security Model
-- Single-user application
-- Localhost only (127.0.0.1)
-- No authentication required
-- No external network access
-- All data stored locally
+
+- **Authentication:** Session-based authentication with bcrypt password hashing
+- **Default Credentials:**
+  - Email: `sarah@example.com`
+  - Password: `password123`
+  - **Important:** Change password immediately after first login
+- **Session Management:**
+  - Idle timeout: 30 minutes of inactivity
+  - Absolute timeout: 8 hours from login
+  - Session warning: 2 minutes before timeout
+- **CSRF Protection:** All state-changing operations protected
+- **Rate Limiting:** 5 failed login attempts per 15 minutes
+- **Network:** Localhost only (127.0.0.1), no external network access
+- **Data Storage:** All data stored locally in SQLite database
+
+### Security Best Practices
+
+1. **Change Default Password:** Immediately change the default password on first login
+2. **Strong Passwords:** Use passwords with 8+ characters, mixed case, numbers, and special characters
+3. **Regular Backups:** Back up `projectgoat.db` regularly to prevent data loss
+4. **Local Access Only:** Do not expose the application to external networks
+5. **Keep Updated:** Keep Python and dependencies updated for security patches
 
 ### Future Enhancements
-If multi-user support needed:
-- Add user authentication
-- Implement role-based access
-- Add HTTPS
+
+If multi-user or network deployment needed:
+
+- Add HTTPS/TLS encryption
+- Implement additional role-based permissions
+- Add OAuth/SSO integration
+- Enhanced audit logging
 - Network deployment considerations
 
 ---

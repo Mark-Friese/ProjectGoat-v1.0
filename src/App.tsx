@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Task, User, Project, TaskStatus, Risk, Issue } from './types';
-import logo from './assets/logo/project-goat-logo.png';
+import logo from './assets/logo/project-goat-logo.svg';
 import * as taskService from './services/tasks';
 import * as userService from './services/users';
 import * as projectService from './services/projects';
@@ -197,8 +197,10 @@ export default function App() {
   };
 
   const handleLoginSuccess = async (user: User) => {
+    // Set authentication state immediately to trigger UI update
     setCurrentUser(user);
     setIsAuthenticated(true);
+    setIsLoading(true); // Show loading state while fetching data
 
     // Start session monitoring
     sessionMonitor.start(
@@ -231,6 +233,8 @@ export default function App() {
     } catch (err) {
       console.error('Failed to fetch data after login:', err);
       setError('Failed to load data. Please refresh the page.');
+    } finally {
+      setIsLoading(false); // Hide loading state when done
     }
   };
 
