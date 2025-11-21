@@ -33,7 +33,7 @@ class TestLogin:
         )
 
         assert response.status_code == 401
-        assert "Invalid credentials" in response.json()["detail"]
+        assert "Invalid email or password" in response.json()["detail"]
 
     def test_login_nonexistent_user(self, client):
         """Test login with non-existent user."""
@@ -43,7 +43,7 @@ class TestLogin:
         )
 
         assert response.status_code == 401
-        assert "Invalid credentials" in response.json()["detail"]
+        assert "Invalid email or password" in response.json()["detail"]
 
     def test_login_missing_fields(self, client):
         """Test login with missing fields."""
@@ -73,7 +73,7 @@ class TestLogin:
         )
 
         assert response.status_code == 403
-        assert "Account is inactive" in response.json()["detail"]
+        assert "Account has been disabled" in response.json()["detail"]
 
 
 class TestLogout:
@@ -86,26 +86,33 @@ class TestLogout:
         # Logout
         response = client.post(
             "/api/auth/logout",
-            headers={"X-Session-ID": session_id, "X-CSRF-Token": csrf_token}
+            json={"session_id": session_id},
+            headers={"X-CSRF-Token": csrf_token}
         )
 
         assert response.status_code == 200
         assert response.json()["message"] == "Logged out successfully"
 
-        # Verify session is invalidated - check session should fail
+        # Verify session is invalidated - check session should return unauthenticated
         response = client.get(
             "/api/auth/session",
-            headers={"X-Session-ID": session_id}
+            params={"session_id": session_id}
         )
 
-        assert response.status_code == 401
+        assert response.status_code == 200
+        data = response.json()
+        assert data["authenticated"] is False
+        assert data["user"] is None
 
     def test_logout_without_session(self, client):
-        """Test logout without session."""
-        response = client.post("/api/auth/logout")
+        """Test logout without session (requires session_id parameter)."""
+        response = client.post(
+            "/api/auth/logout",
+            json={}
+        )
 
-        # Should still return 200 (idempotent)
-        assert response.status_code == 200
+        # Should return 422 validation error for missing session_id
+        assert response.status_code == 422
 
 
 class TestSessionValidation:
@@ -117,7 +124,7 @@ class TestSessionValidation:
 
         response = client.get(
             "/api/auth/session",
-            headers={"X-Session-ID": session_id}
+            params={"session_id": session_id}
         )
 
         assert response.status_code == 200
@@ -129,20 +136,22 @@ class TestSessionValidation:
         """Test checking an invalid session."""
         response = client.get(
             "/api/auth/session",
-            headers={"X-Session-ID": "invalid_session_id"}
+            params={"session_id": "invalid_session_id"}
         )
 
-        assert response.status_code == 401
+        assert response.status_code == 200
         data = response.json()
         assert data["authenticated"] is False
+        assert data["user"] is None
 
     def test_check_session_no_header(self, client):
-        """Test checking session without session header."""
+        """Test checking session without session parameter."""
         response = client.get("/api/auth/session")
 
-        assert response.status_code == 401
+        assert response.status_code == 200
         data = response.json()
         assert data["authenticated"] is False
+        assert data["user"] is None
 
     def test_session_activity_tracking(self, authenticated_client, db_session):
         """Test that session activity is tracked."""
@@ -152,7 +161,7 @@ class TestSessionValidation:
 
         # Get initial last_activity_at
         session = db_session.query(UserSession).filter_by(id=session_id).first()
-        initial_activity = session.last_activity_at
+        initial_activity = session.last_accessed
 
         # Wait a moment and make another request
         import time
@@ -161,12 +170,12 @@ class TestSessionValidation:
         # Make a request to trigger activity update
         client.get(
             "/api/auth/session",
-            headers={"X-Session-ID": session_id}
+            params={"session_id": session_id}
         )
 
-        # Check that last_activity_at was updated
+        # Check that last_accessed was updated
         db_session.refresh(session)
-        assert session.last_activity_at > initial_activity
+        assert session.last_accessed > initial_activity
 
 
 class TestPasswordChange:
@@ -188,15 +197,17 @@ class TestPasswordChange:
 
         assert response.status_code == 200
         data = response.json()
+        assert data["success"] is True
         assert data["message"] == "Password changed successfully"
         assert "csrfToken" in data  # New CSRF token should be returned
 
         # Verify old session is invalidated
         response = client.get(
             "/api/auth/session",
-            headers={"X-Session-ID": session_id}
+            params={"session_id": session_id}
         )
-        assert response.status_code == 401
+        assert response.status_code == 200
+        assert response.json()["authenticated"] is False
 
         # Verify new password works
         response = client.post(
@@ -267,10 +278,13 @@ class TestSessionTimeout:
         # Session should be expired
         response = client.get(
             "/api/auth/session",
-            headers={"X-Session-ID": session_id}
+            params={"session_id": session_id}
         )
 
-        assert response.status_code == 401
+        assert response.status_code == 200
+        data = response.json()
+        assert data["authenticated"] is False
+        assert data["user"] is None
 
     def test_absolute_timeout(self, authenticated_client, db_session):
         """Test session absolute timeout (8 hours)."""
@@ -287,7 +301,10 @@ class TestSessionTimeout:
         # Session should be expired due to absolute timeout
         response = client.get(
             "/api/auth/session",
-            headers={"X-Session-ID": session_id}
+            params={"session_id": session_id}
         )
 
-        assert response.status_code == 401
+        assert response.status_code == 200
+        data = response.json()
+        assert data["authenticated"] is False
+        assert data["user"] is None

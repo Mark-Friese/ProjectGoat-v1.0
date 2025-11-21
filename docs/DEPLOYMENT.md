@@ -50,15 +50,20 @@ No build step needed - Python files run as-is.
 Create folder structure:
 ```
 ProjectGoat-Deployment/
-├── frontend/               # Copy from build/
+├── build/                  # Copy from build/ (906 KB production bundle)
 │   ├── index.html
 │   └── assets/
+│       ├── index-[hash].js
+│       └── index-[hash].css
 ├── backend/                # Python backend files
 │   ├── main.py
 │   ├── database.py
 │   ├── models.py
 │   ├── schemas.py
 │   ├── crud.py
+│   ├── auth.py
+│   ├── csrf.py
+│   ├── rate_limiter.py
 │   └── init_db.py
 ├── run.py                 # Startup script
 ├── requirements.txt       # Python dependencies
@@ -67,8 +72,8 @@ ProjectGoat-Deployment/
 
 #### Copy Frontend Files
 ```bash
-# Copy built frontend
-xcopy build\* ProjectGoat-Deployment\frontend\ /E /I /Y
+# Copy built frontend (production bundle)
+xcopy build\* ProjectGoat-Deployment\build\ /E /I /Y
 ```
 
 #### Copy Backend Files
@@ -166,45 +171,51 @@ The app should load immediately!
 
 ## File: run.py (Startup Script)
 
+The startup script is already configured at the project root:
+
 ```python
 """
 ProjectGoat Startup Script
-Starts FastAPI backend and serves frontend
+Starts FastAPI backend server with integrated frontend serving
 """
 import uvicorn
-import os
+import sys
 from pathlib import Path
 
-# Configuration
-HOST = "127.0.0.1"  # localhost only
-PORT = 8000
-FRONTEND_DIR = Path(__file__).parent / "frontend"
-BACKEND_DIR = Path(__file__).parent / "backend"
-
-# Add backend to Python path
-import sys
-sys.path.insert(0, str(BACKEND_DIR))
+# Add backend directory to Python path
+backend_dir = Path(__file__).parent / "backend"
+sys.path.insert(0, str(backend_dir))
 
 def main():
-    print("=" * 50)
-    print("ProjectGoat by TeamGoat")
-    print("=" * 50)
-    print(f"Starting server on http://{HOST}:{PORT}")
-    print("Press CTRL+C to stop")
-    print("=" * 50)
+    """Start the ProjectGoat application server"""
+    print("\n" + "=" * 60)
+    print("  ProjectGoat by TeamGoat")
+    print("=" * 60)
+    print("  Backend API: http://127.0.0.1:8000/api")
+    print("  API Docs:    http://127.0.0.1:8000/docs")
+    print("  Health:      http://127.0.0.1:8000/api/health")
+    print("=" * 60)
+    print("  Press CTRL+C to stop the server")
+    print("=" * 60 + "\n")
 
     # Start uvicorn server
     uvicorn.run(
         "main:app",
-        host=HOST,
-        port=PORT,
-        reload=False,  # No reload in production
+        host="127.0.0.1",
+        port=8000,
+        reload=False,
         log_level="info"
     )
 
 if __name__ == "__main__":
     main()
 ```
+
+**Key features:**
+- Serves both API (on `/api/*`) and frontend (on `/`) from single process
+- No Node.js required - uses FastAPI's static file serving
+- Automatically detects and serves from `build/` directory
+- Localhost only for security (127.0.0.1)
 
 ---
 
@@ -220,38 +231,50 @@ python-multipart==0.0.20
 
 ---
 
-## File: backend/main.py (Updated for Static Files)
+## File: backend/main.py (Static File Serving Configuration)
 
-Add static file serving to FastAPI:
+The backend is configured to serve the production build automatically. This section is already implemented at the end of `backend/main.py`:
 
 ```python
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from pathlib import Path
+# ==================== Serve Frontend (Production) ====================
 
-app = FastAPI(title="ProjectGoat API")
+# Check if build directory exists (production mode)
+BUILD_PATH = Path(__file__).parent.parent / "build"
+if BUILD_PATH.exists():
+    from fastapi.responses import FileResponse
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:8000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+    # Mount static assets (JS, CSS, images, etc.)
+    app.mount("/assets", StaticFiles(directory=str(BUILD_PATH / "assets")), name="assets")
 
-# API routes
-@app.get("/api/health")
-def health_check():
-    return {"status": "ok"}
+    # Serve static files from build root (favicon, logo, etc.)
+    @app.get("/favicon.ico")
+    async def favicon():
+        return FileResponse(BUILD_PATH / "favicon.ico")
 
-# ... all other API routes ...
+    @app.get("/project-goat-logo.svg")
+    async def logo():
+        logo_path = BUILD_PATH / "project-goat-logo.svg"
+        if logo_path.exists():
+            return FileResponse(logo_path)
+        raise HTTPException(status_code=404, detail="Logo not found")
 
-# Serve frontend static files
-frontend_path = Path(__file__).parent.parent / "frontend"
-app.mount("/", StaticFiles(directory=str(frontend_path), html=True), name="frontend")
+    # Catch-all route for SPA - must be last!
+    # This serves index.html for all non-API routes
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Don't intercept API routes
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="API endpoint not found")
+
+        # Serve index.html for all other routes (SPA routing)
+        return FileResponse(BUILD_PATH / "index.html")
 ```
+
+This configuration:
+- Serves static assets from `/assets` directory
+- Handles SPA routing by serving `index.html` for all non-API routes
+- Protects API routes from being caught by the catch-all
+- Only activates when `build/` directory exists
 
 ---
 
@@ -284,9 +307,10 @@ PORT = 8001  # or any available port
 ### Problem: Frontend shows blank page
 **Solutions:**
 1. Check browser console (F12) for errors
-2. Verify frontend files copied correctly
+2. Verify frontend files copied correctly to `build/` directory
 3. Check backend logs for errors
-4. Ensure `index.html` is in `frontend/` directory
+4. Ensure `index.html` and `assets/` folder are in `build/` directory
+5. Verify `build/` directory is in same location as `backend/` and `run.py`
 
 ### Problem: API calls fail (CORS error)
 **Solution:** Update CORS origins in `main.py` to match your URL
@@ -440,7 +464,8 @@ If multi-user or network deployment needed:
 │ Files:                                  │
 │  projectgoat.db - Your data             │
 │  backend/       - Server code           │
-│  frontend/      - Web interface         │
+│  build/         - Web interface (906KB) │
+│  run.py         - Startup script        │
 │                                         │
 │ Backup:                                 │
 │  copy projectgoat.db backup.db          │
