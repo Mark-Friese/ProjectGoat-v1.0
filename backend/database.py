@@ -1,12 +1,17 @@
 """
 Database configuration and session management
 """
+from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# SQLite database file
-DATABASE_URL = "sqlite:///./projectgoat.db"
+# Get project root directory (one level up from backend)
+PROJECT_ROOT = Path(__file__).parent.parent
+DATABASE_PATH = PROJECT_ROOT / "projectgoat.db"
+
+# SQLite database file - always points to root database
+DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 
 # Create engine
 engine = create_engine(

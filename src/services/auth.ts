@@ -13,6 +13,7 @@ interface LoginRequest {
 
 interface LoginResponse {
   sessionId: string;
+  csrfToken: string;
   user: User;
 }
 
@@ -27,9 +28,12 @@ interface SessionResponse {
 export async function login(email: string, password: string): Promise<LoginResponse> {
   const response = await api.post<LoginResponse>('/auth/login', { email, password });
 
-  // Store session ID in localStorage
+  // Store session ID and CSRF token in localStorage
   if (response.sessionId) {
     localStorage.setItem('sessionId', response.sessionId);
+  }
+  if (response.csrfToken) {
+    localStorage.setItem('csrfToken', response.csrfToken);
   }
 
   return response;
@@ -61,6 +65,7 @@ export async function logout(): Promise<void> {
     }
 
     localStorage.removeItem('sessionId');
+    localStorage.removeItem('csrfToken');
   }
 }
 
@@ -76,4 +81,17 @@ export async function getCurrentUser(): Promise<{ userId: string }> {
  */
 export async function setCurrentUser(userId: string): Promise<void> {
   await api.put('/settings/current-user', { user_id: userId });
+}
+
+/**
+ * Change user password
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<{ success: boolean; message: string }> {
+  return await api.post('/auth/change-password', {
+    current_password: currentPassword,
+    new_password: newPassword,
+  });
 }

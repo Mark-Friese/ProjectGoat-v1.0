@@ -212,6 +212,7 @@ class LoginRequest(BaseModel):
 
 class LoginResponse(BaseModel):
     session_id: str = Field(alias="sessionId")
+    csrf_token: str = Field(alias="csrfToken")
     user: User
 
     class Config:
@@ -220,3 +221,11 @@ class LoginResponse(BaseModel):
 class SessionResponse(BaseModel):
     user: Optional[User] = None
     authenticated: bool
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+class ChangePasswordResponse(BaseModel):
+    success: bool
+    message: str

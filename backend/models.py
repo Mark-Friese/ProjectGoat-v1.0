@@ -18,6 +18,15 @@ class User(Base):
     availability = Column(Boolean, nullable=False, default=True)
     password_hash = Column(Text, nullable=True)  # Hashed password for authentication
 
+    # Security and account management fields
+    is_active = Column(Boolean, nullable=False, default=True)
+    must_change_password = Column(Boolean, nullable=False, default=False)
+    password_changed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=True)
+    last_login_at = Column(DateTime, nullable=True)
+    failed_login_attempts = Column(Integer, default=0)
+    account_locked_until = Column(DateTime, nullable=True)
+
     # Relationships
     assigned_tasks = relationship("Task", back_populates="assignee", foreign_keys="Task.assignee_id")
     comments = relationship("Comment", back_populates="user")
@@ -198,3 +207,37 @@ class Issue(Base):
     def related_task_ids_list(self, value):
         """Convert related_task_ids list to JSON string"""
         self.related_task_ids = json.dumps(value) if value else None
+
+
+class LoginAttempt(Base):
+    __tablename__ = "login_attempts"
+
+    id = Column(String(50), primary_key=True)
+    email = Column(String(200), nullable=False, index=True)
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    attempted_at = Column(DateTime, nullable=False, index=True)
+    success = Column(Boolean, nullable=False, default=False)
+    failure_reason = Column(Text, nullable=True)
+
+
+class UserPermission(Base):
+    __tablename__ = "user_permissions"
+
+    id = Column(String(50), primary_key=True)
+    role = Column(String(20), nullable=False, index=True)
+    resource = Column(String(50), nullable=False)
+    action = Column(String(50), nullable=False)
+    allowed = Column(Boolean, nullable=False, default=True)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    id = Column(String(50), primary_key=True)
+    user_id = Column(String(50), ForeignKey("users.id"), nullable=False, index=True)
+    action = Column(String(100), nullable=False)
+    target_user_id = Column(String(50), nullable=True)
+    details = Column(Text, nullable=True)
+    ip_address = Column(String(45), nullable=True)
+    timestamp = Column(DateTime, nullable=False, index=True)

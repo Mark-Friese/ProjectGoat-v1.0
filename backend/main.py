@@ -2,18 +2,22 @@
 FastAPI Main Application
 Defines all REST API endpoints
 """
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional
 from pathlib import Path
+from datetime import datetime
 import json
 
 import crud
 import models
 import schemas
 import auth
+import rate_limiter
+import csrf
 from database import engine, get_db
 
 # Create database tables
@@ -34,6 +38,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# CSRF protection middleware
+app.add_middleware(csrf.CSRFMiddleware)
 
 # ==================== Health Check ====================
 
@@ -381,16 +388,85 @@ def delete_issue(issue_id: str, db: Session = Depends(get_db)):
 # ==================== Authentication Endpoints ====================
 
 @app.post("/api/auth/login", response_model=schemas.LoginResponse)
-def login(request: schemas.LoginRequest, db: Session = Depends(get_db)):
-    """Authenticate user and create session"""
+def login(
+    request: schemas.LoginRequest,
+    http_request: Request,
+    db: Session = Depends(get_db)
+):
+    """Authenticate user and create session with rate limiting"""
+    # Get client IP and user agent
+    client_ip = http_request.client.host if http_request.client else None
+    user_agent = http_request.headers.get("user-agent")
+
+    # Check rate limits
+    is_allowed, attempts_remaining, locked_until = rate_limiter.check_rate_limit(
+        db, request.email, client_ip
+    )
+
+    if not is_allowed:
+        # Account is locked
+        minutes_remaining = int(
+            (locked_until - datetime.now()).total_seconds() / 60
+        )
+        rate_limiter.record_login_attempt(
+            db, request.email, False, client_ip, user_agent,
+            "Account locked due to too many failed attempts"
+        )
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many failed login attempts. Account locked for "
+                   f"{minutes_remaining} more minutes."
+        )
+
     # Find user by email
     user = crud.get_user_by_email(db, request.email)
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        rate_limiter.record_login_attempt(
+            db, request.email, False, client_ip, user_agent,
+            "Email not found"
+        )
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password"
+        )
+
+    # Check if account is active
+    if not user.is_active:
+        rate_limiter.record_login_attempt(
+            db, request.email, False, client_ip, user_agent,
+            "Account disabled"
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Account has been disabled. Please contact an administrator."
+        )
 
     # Verify password
     if not auth.verify_password(request.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        rate_limiter.record_login_attempt(
+            db, request.email, False, client_ip, user_agent,
+            "Invalid password"
+        )
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid email or password"
+        )
+
+    # Successful login - record it
+    rate_limiter.record_login_attempt(
+        db, request.email, True, client_ip, user_agent
+    )
+
+    # Clear any previous failed attempts
+    rate_limiter.clear_login_attempts(db, request.email)
+
+    # Update last login timestamp
+    from sqlalchemy import text
+    db.execute(
+        text("UPDATE users SET last_login_at = :now WHERE id = :user_id"),
+        {"now": datetime.now().isoformat(), "user_id": user.id}
+    )
+    db.commit()
 
     # Create session
     session_id = auth.create_session(db, user.id)
@@ -398,9 +474,14 @@ def login(request: schemas.LoginRequest, db: Session = Depends(get_db)):
     # Set as current user
     auth.set_current_user_setting(db, user.id)
 
+    # Generate and store CSRF token
+    csrf_token = csrf.generate_csrf_token()
+    csrf.store_csrf_token(session_id, csrf_token)
+
     # Convert to response
     return schemas.LoginResponse(
         sessionId=session_id,
+        csrfToken=csrf_token,
         user=schemas.User(
             id=user.id,
             name=user.name,
@@ -451,6 +532,86 @@ def logout(session_id: str, db: Session = Depends(get_db)):
     """Logout user and delete session"""
     auth.delete_session(db, session_id)
     return {"message": "Logged out successfully"}
+
+
+@app.post("/api/auth/change-password", response_model=schemas.ChangePasswordResponse)
+def change_password(
+    request: schemas.ChangePasswordRequest,
+    http_request: Request,
+    db: Session = Depends(get_db)
+):
+    """Change user password with validation"""
+    # Get session ID from header
+    session_id = http_request.headers.get("X-Session-ID")
+    if not session_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Session ID required"
+        )
+
+    # Get user from session
+    user_id = auth.get_session_user(db, session_id)
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired session"
+        )
+
+    # Get user
+    user = crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Verify current password
+    if not auth.verify_password(request.current_password, user.password_hash):
+        raise HTTPException(
+            status_code=401,
+            detail="Current password is incorrect"
+        )
+
+    # Validate new password strength
+    is_valid, error_message = auth.validate_password_strength(
+        request.new_password
+    )
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_message)
+
+    # Check if new password is different from current
+    if auth.verify_password(request.new_password, user.password_hash):
+        raise HTTPException(
+            status_code=400,
+            detail="New password must be different from current password"
+        )
+
+    # Hash new password
+    new_password_hash = auth.hash_password(request.new_password)
+
+    # Update password in database
+    db.execute(
+        text("""
+            UPDATE users
+            SET password_hash = :password_hash,
+                password_changed_at = :changed_at
+            WHERE id = :user_id
+        """),
+        {
+            "password_hash": new_password_hash,
+            "changed_at": datetime.now().isoformat(),
+            "user_id": user_id
+        }
+    )
+    db.commit()
+
+    # Invalidate all other sessions except current one
+    auth.invalidate_user_sessions(db, user_id, except_session_id=session_id)
+
+    # Clear CSRF token (will be regenerated on next state-changing request)
+    csrf.clear_csrf_token(session_id)
+
+    return schemas.ChangePasswordResponse(
+        success=True,
+        message="Password changed successfully"
+    )
 
 
 # ==================== Settings Endpoints ====================

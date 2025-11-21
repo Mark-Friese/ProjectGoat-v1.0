@@ -6,7 +6,7 @@
 const API_BASE_URL = '/api'; // Will use Vite proxy in development
 
 /**
- * Generic API request handler with error handling
+ * Generic API request handler with error handling and CSRF protection
  */
 async function apiRequest<T>(
   endpoint: string,
@@ -14,12 +14,28 @@ async function apiRequest<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
+  // Get session ID and CSRF token from localStorage
+  const sessionId = localStorage.getItem('sessionId');
+  const csrfToken = localStorage.getItem('csrfToken');
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+
+  // Add CSRF token and session ID for state-changing requests
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(options.method || 'GET')) {
+    if (sessionId) {
+      headers['X-Session-ID'] = sessionId;
+    }
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+    }
+  }
+
   const config: RequestInit = {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
   };
 
   try {
@@ -29,7 +45,11 @@ async function apiRequest<T>(
       const error = await response.json().catch(() => ({
         detail: `HTTP ${response.status}: ${response.statusText}`,
       }));
-      throw new Error(error.detail || `Request failed with status ${response.status}`);
+
+      // Create error object with status code
+      const apiError: any = new Error(error.detail || `Request failed with status ${response.status}`);
+      apiError.status = response.status;
+      throw apiError;
     }
 
     // Handle 204 No Content

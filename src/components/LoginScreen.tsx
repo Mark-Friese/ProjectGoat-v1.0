@@ -3,6 +3,7 @@ import { User } from '../types';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { Input } from './ui/input';
+import { PasswordInput } from './ui/password-input';
 import { Label } from './ui/label';
 import * as authService from '../services/auth';
 import logo from '../assets/logo/project-goat-logo.png';
@@ -27,7 +28,15 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       onLoginSuccess(response.user);
     } catch (err: any) {
       console.error('Login failed:', err);
-      setError(err.message || 'Invalid email or password. Please try again.');
+
+      // Handle rate limiting errors (429)
+      if (err.status === 429) {
+        setError(err.message || 'Too many login attempts. Please try again later.');
+      } else if (err.status === 403) {
+        setError(err.message || 'Account has been disabled. Please contact an administrator.');
+      } else {
+        setError(err.message || 'Invalid email or password. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -60,9 +69,8 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 placeholder="Enter your password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

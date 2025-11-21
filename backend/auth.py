@@ -4,8 +4,9 @@ Handles password hashing, session creation, and validation
 """
 import bcrypt
 import secrets
+import re
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -105,4 +106,66 @@ def set_current_user_setting(db: Session, user_id: str):
         """),
         {"user_id": user_id, "updated_at": datetime.now().isoformat()}
     )
+    db.commit()
+
+
+def validate_password_strength(password: str) -> Tuple[bool, str]:
+    """
+    Validate password meets security requirements
+
+    Requirements:
+    - Minimum 8 characters
+    - At least one uppercase letter
+    - At least one lowercase letter
+    - At least one number
+    - At least one special character
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if len(password) < 8:
+        return (False, "Password must be at least 8 characters long")
+
+    if not re.search(r'[A-Z]', password):
+        return (False, "Password must contain at least one uppercase letter")
+
+    if not re.search(r'[a-z]', password):
+        return (False, "Password must contain at least one lowercase letter")
+
+    if not re.search(r'\d', password):
+        return (False, "Password must contain at least one number")
+
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        return (False, "Password must contain at least one special character")
+
+    return (True, "")
+
+
+def invalidate_user_sessions(
+    db: Session,
+    user_id: str,
+    except_session_id: Optional[str] = None
+):
+    """
+    Invalidate all sessions for a user
+
+    Args:
+        db: Database session
+        user_id: User ID whose sessions to invalidate
+        except_session_id: Optional session ID to keep active (current session)
+    """
+    if except_session_id:
+        db.execute(
+            text("""
+                DELETE FROM sessions
+                WHERE user_id = :user_id
+                  AND id != :except_session_id
+            """),
+            {"user_id": user_id, "except_session_id": except_session_id}
+        )
+    else:
+        db.execute(
+            text("DELETE FROM sessions WHERE user_id = :user_id"),
+            {"user_id": user_id}
+        )
     db.commit()

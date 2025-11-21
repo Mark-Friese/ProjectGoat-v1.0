@@ -8,6 +8,7 @@ import * as riskService from './services/risks';
 import * as issueService from './services/issues';
 import * as authService from './services/auth';
 import { LoginScreen } from './components/LoginScreen';
+import { ChangePasswordDialog } from './components/ChangePasswordDialog';
 import { DashboardView } from './components/DashboardView';
 import { KanbanView } from './components/KanbanView';
 import { ListView } from './components/ListView';
@@ -31,6 +32,7 @@ import {
   Menu,
   X,
   LogOut,
+  KeyRound,
 } from 'lucide-react';
 
 type View = 'dashboard' | 'kanban' | 'list' | 'gantt' | 'calendar' | 'workload' | 'team' | 'reports';
@@ -63,6 +65,7 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -375,15 +378,26 @@ export default function App() {
                 </Badge>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full"
-              onClick={handleLogout}
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Logout
-            </Button>
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => setIsChangePasswordOpen(true)}
+              >
+                <KeyRound className="w-4 h-4 mr-2" />
+                Change Password
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={handleLogout}
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Logout
+              </Button>
+            </div>
           </div>
         )}
       </aside>
@@ -423,6 +437,12 @@ export default function App() {
         task={selectedTask}
         users={users}
         onSave={handleSaveTask}
+      />
+
+      {/* Change Password Dialog */}
+      <ChangePasswordDialog
+        open={isChangePasswordOpen}
+        onOpenChange={setIsChangePasswordOpen}
       />
     </div>
   );
