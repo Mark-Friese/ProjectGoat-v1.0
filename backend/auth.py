@@ -10,6 +10,10 @@ from typing import Optional, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
+# Session timeout configuration
+IDLE_TIMEOUT_MINUTES = 30  # Logout after 30 minutes of inactivity
+ABSOLUTE_TIMEOUT_HOURS = 8  # Logout after 8 hours regardless of activity
+
 
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt"""
@@ -31,8 +35,12 @@ def create_session(db: Session, user_id: str, expires_days: int = 30) -> str:
 
     db.execute(
         text("""
-            INSERT INTO sessions (id, user_id, created_at, expires_at, last_accessed)
-            VALUES (:id, :user_id, :created_at, :expires_at, :last_accessed)
+            INSERT INTO sessions (
+                id, user_id, created_at, expires_at, last_accessed
+            )
+            VALUES (
+                :id, :user_id, :created_at, :expires_at, :last_accessed
+            )
         """),
         {
             "id": session_id,
@@ -51,7 +59,7 @@ def get_session_user(db: Session, session_id: str) -> Optional[str]:
     """Get user ID from a session if it's valid and not expired"""
     result = db.execute(
         text("""
-            SELECT user_id, expires_at
+            SELECT user_id, expires_at, created_at, last_activity_at
             FROM sessions
             WHERE id = :session_id
         """),
@@ -61,18 +69,36 @@ def get_session_user(db: Session, session_id: str) -> Optional[str]:
     if not result:
         return None
 
-    user_id, expires_at_str = result
-    expires_at = datetime.fromisoformat(expires_at_str)
+    user_id, expires_at_str, created_at_str, last_activity_at_str = result
+    now = datetime.now()
 
-    if datetime.now() > expires_at:
-        # Session expired
+    # Check absolute expiration (30 days from creation)
+    expires_at = datetime.fromisoformat(expires_at_str)
+    if now > expires_at:
         delete_session(db, session_id)
         return None
 
-    # Update last accessed time
+    # Check absolute timeout (8 hours from creation)
+    created_at = datetime.fromisoformat(created_at_str)
+    absolute_timeout = created_at + timedelta(
+        hours=ABSOLUTE_TIMEOUT_HOURS
+    )
+    if now > absolute_timeout:
+        delete_session(db, session_id)
+        return None
+
+    # Check idle timeout (30 minutes since last activity)
+    if last_activity_at_str:
+        last_activity_at = datetime.fromisoformat(last_activity_at_str)
+        idle_timeout = last_activity_at + timedelta(minutes=IDLE_TIMEOUT_MINUTES)
+        if now > idle_timeout:
+            delete_session(db, session_id)
+            return None
+
+    # Session is valid - update last accessed time (not last_activity_at, that's for middleware)
     db.execute(
         text("UPDATE sessions SET last_accessed = :now WHERE id = :session_id"),
-        {"now": datetime.now().isoformat(), "session_id": session_id}
+        {"now": now.isoformat(), "session_id": session_id}
     )
     db.commit()
 

@@ -95,3 +95,38 @@ export async function changePassword(
     new_password: newPassword,
   });
 }
+
+/**
+ * Get current user's profile with login history
+ */
+export async function getProfile(): Promise<UserProfile> {
+  return await api.get<UserProfile>('/users/me');
+}
+
+/**
+ * Update current user's profile
+ */
+export async function updateProfile(data: {
+  name?: string;
+  email?: string;
+}): Promise<User> {
+  return await api.put<User>('/users/me', data);
+}
+
+export interface LoginHistoryEntry {
+  ipAddress?: string;
+  userAgent?: string;
+  attemptedAt: string;
+  success: boolean;
+}
+
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  createdAt?: string;
+  lastLoginAt?: string;
+  passwordChangedAt?: string;
+  loginHistory: LoginHistoryEntry[];
+}

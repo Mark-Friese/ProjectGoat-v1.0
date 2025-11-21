@@ -9,6 +9,8 @@ import * as issueService from './services/issues';
 import * as authService from './services/auth';
 import { LoginScreen } from './components/LoginScreen';
 import { ChangePasswordDialog } from './components/ChangePasswordDialog';
+import { SessionTimeoutDialog } from './components/SessionTimeoutDialog';
+import { sessionMonitor } from './utils/session-monitor';
 import { DashboardView } from './components/DashboardView';
 import { KanbanView } from './components/KanbanView';
 import { ListView } from './components/ListView';
@@ -17,6 +19,7 @@ import { CalendarView } from './components/CalendarView';
 import { WorkloadView } from './components/WorkloadView';
 import { TeamView } from './components/TeamView';
 import { ReportsView } from './components/ReportsView';
+import { ProfileView } from './components/ProfileView';
 import { TaskDialog } from './components/TaskDialog';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
@@ -33,9 +36,10 @@ import {
   X,
   LogOut,
   KeyRound,
+  UserCircle,
 } from 'lucide-react';
 
-type View = 'dashboard' | 'kanban' | 'list' | 'gantt' | 'calendar' | 'workload' | 'team' | 'reports';
+type View = 'dashboard' | 'kanban' | 'list' | 'gantt' | 'calendar' | 'workload' | 'team' | 'reports' | 'profile';
 
 interface NavigationItem {
   id: View;
@@ -52,6 +56,7 @@ const navigationItems: NavigationItem[] = [
   { id: 'workload', label: 'Team Workload', icon: Users },
   { id: 'team', label: 'Team Members', icon: Users },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
+  { id: 'profile', label: 'My Profile', icon: UserCircle },
 ];
 
 export default function App() {
@@ -66,6 +71,8 @@ export default function App() {
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [isTimeoutWarningOpen, setIsTimeoutWarningOpen] = useState(false);
+  const [timeoutSecondsRemaining, setTimeoutSecondsRemaining] = useState(0);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +91,19 @@ export default function App() {
           // User is authenticated
           setCurrentUser(sessionResponse.user);
           setIsAuthenticated(true);
+
+          // Start session monitoring
+          sessionMonitor.start(
+            (timeRemaining) => {
+              // Show timeout warning
+              setTimeoutSecondsRemaining(timeRemaining);
+              setIsTimeoutWarningOpen(true);
+            },
+            () => {
+              // Session expired - auto logout
+              handleSessionExpired();
+            }
+          );
 
           // Fetch all data
           const [tasksData, usersData, projectsData, risksData, issuesData] = await Promise.all([
@@ -180,6 +200,19 @@ export default function App() {
     setCurrentUser(user);
     setIsAuthenticated(true);
 
+    // Start session monitoring
+    sessionMonitor.start(
+      (timeRemaining) => {
+        // Show timeout warning
+        setTimeoutSecondsRemaining(timeRemaining);
+        setIsTimeoutWarningOpen(true);
+      },
+      () => {
+        // Session expired - auto logout
+        handleSessionExpired();
+      }
+    );
+
     // Fetch all data after successful login
     try {
       const [tasksData, usersData, projectsData, risksData, issuesData] = await Promise.all([
@@ -202,14 +235,41 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    // Stop session monitoring
+    sessionMonitor.stop();
+
     await authService.logout();
     setCurrentUser(null);
     setIsAuthenticated(false);
+    setIsTimeoutWarningOpen(false);
     setTasks([]);
     setUsers([]);
     setProjects([]);
     setRisks([]);
     setIssues([]);
+  };
+
+  const handleSessionExpired = async () => {
+    // Session expired - clean logout without API call
+    sessionMonitor.stop();
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+    setIsTimeoutWarningOpen(false);
+    setTasks([]);
+    setUsers([]);
+    setProjects([]);
+    setRisks([]);
+    setIssues([]);
+
+    // Clear stored session data
+    localStorage.removeItem('sessionId');
+    localStorage.removeItem('csrfToken');
+  };
+
+  const handleExtendSession = () => {
+    // Extend session
+    sessionMonitor.extendSession();
+    setIsTimeoutWarningOpen(false);
   };
 
   const renderView = () => {
@@ -237,6 +297,14 @@ export default function App() {
         return <TeamView users={users} tasks={tasks} onUserUpdate={handleUserUpdate} />;
       case 'reports':
         return <ReportsView tasks={tasks} users={users} risks={risks} issues={issues} />;
+      case 'profile':
+        return currentUser ? (
+          <ProfileView
+            currentUser={currentUser}
+            onPasswordChangeClick={() => setIsChangePasswordOpen(true)}
+            onProfileUpdate={handleUserUpdate}
+          />
+        ) : null;
       default:
         return <DashboardView tasks={tasks} users={users} projects={projects} />;
     }
@@ -443,6 +511,14 @@ export default function App() {
       <ChangePasswordDialog
         open={isChangePasswordOpen}
         onOpenChange={setIsChangePasswordOpen}
+      />
+
+      {/* Session Timeout Warning Dialog */}
+      <SessionTimeoutDialog
+        open={isTimeoutWarningOpen}
+        timeRemaining={timeoutSecondsRemaining}
+        onExtendSession={handleExtendSession}
+        onLogout={handleLogout}
       />
     </div>
   );

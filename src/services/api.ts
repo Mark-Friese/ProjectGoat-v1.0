@@ -23,11 +23,13 @@ async function apiRequest<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  // Add CSRF token and session ID for state-changing requests
+  // Add session ID for all requests (for activity tracking)
+  if (sessionId) {
+    headers['X-Session-ID'] = sessionId;
+  }
+
+  // Add CSRF token for state-changing requests only
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(options.method || 'GET')) {
-    if (sessionId) {
-      headers['X-Session-ID'] = sessionId;
-    }
     if (csrfToken) {
       headers['X-CSRF-Token'] = csrfToken;
     }

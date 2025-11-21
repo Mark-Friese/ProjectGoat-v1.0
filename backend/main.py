@@ -5,6 +5,8 @@ Defines all REST API endpoints
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Optional
@@ -18,10 +20,45 @@ import schemas
 import auth
 import rate_limiter
 import csrf
-from database import engine, get_db
+from database import engine, get_db, SessionLocal
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
+
+
+class SessionActivityMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to track user session activity
+    Updates last_activity_at for authenticated requests
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        # Get session ID from header
+        session_id = request.headers.get("X-Session-ID")
+
+        if session_id:
+            # Update last_activity_at timestamp
+            db = SessionLocal()
+            try:
+                db.execute(
+                    text("""
+                        UPDATE sessions
+                        SET last_activity_at = :now
+                        WHERE id = :session_id
+                    """),
+                    {"now": datetime.now().isoformat(), "session_id": session_id}
+                )
+                db.commit()
+            except Exception:
+                # Silently fail - don't block request if activity update fails
+                pass
+            finally:
+                db.close()
+
+        # Continue processing request
+        response = await call_next(request)
+        return response
+
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -38,6 +75,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Session activity tracking middleware (before CSRF check)
+app.add_middleware(SessionActivityMiddleware)
 
 # CSRF protection middleware
 app.add_middleware(csrf.CSRFMiddleware)
@@ -56,6 +96,109 @@ def health_check():
 def list_users(db: Session = Depends(get_db)):
     """Get all users"""
     return crud.get_users(db)
+
+# Profile endpoints must come before {user_id} to avoid route conflicts
+@app.get("/api/users/me", response_model=schemas.UserProfile)
+def get_current_user_profile(
+    http_request: Request,
+    db: Session = Depends(get_db)
+):
+    """Get current user's profile"""
+    # Get session ID from header
+    session_id = http_request.headers.get("X-Session-ID")
+    if not session_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated"
+        )
+
+    # Get user from session
+    user_id = auth.get_session_user(db, session_id)
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired session"
+        )
+
+    # Get user details
+    user = crud.get_user(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    # Get login history
+    login_history = db.execute(
+        text("""
+            SELECT ip_address, user_agent, attempted_at, success
+            FROM login_attempts
+            WHERE email = :email
+            ORDER BY attempted_at DESC
+            LIMIT 10
+        """),
+        {"email": user.email}
+    ).fetchall()
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": user.role,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+        "password_changed_at": user.password_changed_at.isoformat() if user.password_changed_at else None,
+        "login_history": [
+            {
+                "ip_address": row[0],
+                "user_agent": row[1],
+                "attempted_at": row[2],
+                "success": bool(row[3])
+            }
+            for row in login_history
+        ]
+    }
+
+
+@app.put("/api/users/me", response_model=schemas.User)
+def update_current_user_profile(
+    profile_update: schemas.ProfileUpdate,
+    http_request: Request,
+    db: Session = Depends(get_db)
+):
+    """Update current user's profile"""
+    # Get session ID from header
+    session_id = http_request.headers.get("X-Session-ID")
+    if not session_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Not authenticated"
+        )
+
+    # Get user from session
+    user_id = auth.get_session_user(db, session_id)
+    if not user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired session"
+        )
+
+    # Validate: users can't change their own role
+    if profile_update.role is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot change your own role"
+        )
+
+    # Update user
+    updated_user = crud.update_user(db, user_id, profile_update)
+    if not updated_user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    return updated_user
 
 @app.get("/api/users/{user_id}", response_model=schemas.User)
 def get_user(user_id: str, db: Session = Depends(get_db)):

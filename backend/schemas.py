@@ -27,6 +27,34 @@ class User(UserBase):
     class Config:
         from_attributes = True
 
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=200)
+    email: Optional[EmailStr] = None
+    role: Optional[str] = None  # Will be validated to prevent self-elevation
+
+class LoginHistoryEntry(BaseModel):
+    ip_address: Optional[str] = Field(None, alias="ipAddress")
+    user_agent: Optional[str] = Field(None, alias="userAgent")
+    attempted_at: str = Field(alias="attemptedAt")
+    success: bool
+
+    class Config:
+        populate_by_name = True
+
+class UserProfile(BaseModel):
+    id: str
+    name: str
+    email: str
+    role: str
+    created_at: Optional[str] = Field(None, alias="createdAt")
+    last_login_at: Optional[str] = Field(None, alias="lastLoginAt")
+    password_changed_at: Optional[str] = Field(None, alias="passwordChangedAt")
+    login_history: List[LoginHistoryEntry] = Field(alias="loginHistory")
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
 
 # ==================== Project Schemas ====================
 
