@@ -191,6 +191,14 @@ export default function App() {
         setTasks(tasks.map((t) => (t.id === selectedTask.id ? updatedTask : t)));
       } else {
         // Create new task
+        // For projectId, prioritize: user selection > current project > first project
+        const defaultProjectId = taskData.projectId || selectedProjectId || projects[0]?.id;
+
+        if (!defaultProjectId) {
+          alert('Please select a project before creating a task.');
+          return;
+        }
+
         const newTaskData: Partial<Task> = {
           title: taskData.title || '',
           description: taskData.description || '',
@@ -205,7 +213,7 @@ export default function App() {
           isMilestone: taskData.isMilestone || false,
           dependencies: taskData.dependencies || [],
           storyPoints: taskData.storyPoints,
-          projectId: taskData.projectId || (projects[0]?.id || 'p1'),
+          projectId: defaultProjectId,
         };
         const createdTask = await taskService.createTask(newTaskData);
         setTasks([...tasks, createdTask]);
@@ -339,6 +347,8 @@ export default function App() {
           <KanbanView
             tasks={filteredTasks}
             users={users}
+            projects={projects}
+            viewMode={viewMode}
             onTaskClick={handleTaskClick}
             onTaskStatusChange={handleTaskStatusChange}
           />
@@ -578,6 +588,9 @@ export default function App() {
         onClose={() => setIsTaskDialogOpen(false)}
         task={selectedTask}
         users={users}
+        projects={projects}
+        viewMode={viewMode}
+        selectedProjectId={selectedProjectId}
         onSave={handleSaveTask}
       />
 
