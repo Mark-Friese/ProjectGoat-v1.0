@@ -21,6 +21,8 @@ import { TeamView } from './components/TeamView';
 import { ReportsView } from './components/ReportsView';
 import { ProfileView } from './components/ProfileView';
 import { TaskDialog } from './components/TaskDialog';
+import { ViewModeToggle } from './components/ViewModeToggle';
+import { ProjectSelector } from './components/ProjectSelector';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
 import {
@@ -76,6 +78,10 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // View mode state for dual-perspective (Project vs Personal view)
+  const [viewMode, setViewMode] = useState<'project' | 'personal'>('project');
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   // Check for session and fetch initial data
   useEffect(() => {
@@ -133,6 +139,39 @@ export default function App() {
 
     initializeApp();
   }, []);
+
+  // Load view mode and selected project from localStorage on mount
+  useEffect(() => {
+    const savedViewMode = localStorage.getItem('viewMode');
+    const savedProjectId = localStorage.getItem('selectedProjectId');
+
+    if (savedViewMode && (savedViewMode === 'project' || savedViewMode === 'personal')) {
+      setViewMode(savedViewMode as 'project' | 'personal');
+    }
+
+    if (savedProjectId) {
+      setSelectedProjectId(savedProjectId);
+    }
+  }, []);
+
+  // Initialize selectedProjectId to first project when projects are loaded
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProjectId) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects, selectedProjectId]);
+
+  // Save view mode to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('viewMode', viewMode);
+  }, [viewMode]);
+
+  // Save selected project to localStorage when it changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      localStorage.setItem('selectedProjectId', selectedProjectId);
+    }
+  }, [selectedProjectId]);
 
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
@@ -276,31 +315,46 @@ export default function App() {
     setIsTimeoutWarningOpen(false);
   };
 
+  // Filter tasks based on view mode
+  const getFilteredTasks = () => {
+    if (viewMode === 'personal' && currentUser) {
+      // Personal view: Show only current user's tasks across all projects
+      return tasks.filter(task => task.assigneeId === currentUser.id);
+    } else if (viewMode === 'project' && selectedProjectId) {
+      // Project view: Show all tasks for selected project
+      return tasks.filter(task => task.projectId === selectedProjectId);
+    }
+    // Fallback: show all tasks
+    return tasks;
+  };
+
+  const filteredTasks = getFilteredTasks();
+
   const renderView = () => {
     switch (currentView) {
       case 'dashboard':
-        return <DashboardView tasks={tasks} users={users} projects={projects} />;
+        return <DashboardView tasks={filteredTasks} users={users} projects={projects} />;
       case 'kanban':
         return (
           <KanbanView
-            tasks={tasks}
+            tasks={filteredTasks}
             users={users}
             onTaskClick={handleTaskClick}
             onTaskStatusChange={handleTaskStatusChange}
           />
         );
       case 'list':
-        return <ListView tasks={tasks} users={users} onTaskClick={handleTaskClick} />;
+        return <ListView tasks={filteredTasks} users={users} onTaskClick={handleTaskClick} />;
       case 'gantt':
-        return <GanttView tasks={tasks} users={users} onTaskClick={handleTaskClick} />;
+        return <GanttView tasks={filteredTasks} users={users} onTaskClick={handleTaskClick} />;
       case 'calendar':
-        return <CalendarView tasks={tasks} users={users} onTaskClick={handleTaskClick} />;
+        return <CalendarView tasks={filteredTasks} users={users} onTaskClick={handleTaskClick} />;
       case 'workload':
-        return <WorkloadView tasks={tasks} users={users} onTaskClick={handleTaskClick} />;
+        return <WorkloadView tasks={filteredTasks} users={users} onTaskClick={handleTaskClick} />;
       case 'team':
-        return <TeamView users={users} tasks={tasks} onUserUpdate={handleUserUpdate} />;
+        return <TeamView users={users} tasks={filteredTasks} onUserUpdate={handleUserUpdate} />;
       case 'reports':
-        return <ReportsView tasks={tasks} users={users} risks={risks} issues={issues} />;
+        return <ReportsView tasks={filteredTasks} users={users} risks={risks} issues={issues} />;
       case 'profile':
         return currentUser ? (
           <ProfileView
@@ -310,11 +364,11 @@ export default function App() {
           />
         ) : null;
       default:
-        return <DashboardView tasks={tasks} users={users} projects={projects} />;
+        return <DashboardView tasks={filteredTasks} users={users} projects={projects} />;
     }
   };
 
-  const blockedTasksCount = tasks.filter((t: Task) => t.isBlocked).length;
+  const blockedTasksCount = filteredTasks.filter((t: Task) => t.isBlocked).length;
 
   // Show loading state
   if (isLoading) {
@@ -377,13 +431,29 @@ export default function App() {
           </button>
         </div>
 
-        {/* Project Selector */}
-        <div className="px-4 py-4 border-b">
-          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm text-gray-600">Current Project</p>
-            <p className="mt-1">{projects[0].name}</p>
+        {/* View Mode Toggle */}
+        <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+
+        {/* Project Selector (Project View) or Personal Label (Personal View) */}
+        {viewMode === 'project' ? (
+          <ProjectSelector
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            onProjectChange={setSelectedProjectId}
+          />
+        ) : (
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+                {currentUser?.name.split(' ').map((n) => n[0]).join('') || '?'}
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wider">My Tasks</p>
+                <p className="text-sm font-medium">{currentUser?.name || 'Personal View'}</p>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-1">
