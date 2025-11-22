@@ -146,14 +146,14 @@ def get_current_user_profile(
         "name": user.name,
         "email": user.email,
         "role": user.role,
-        "created_at": user.created_at.isoformat() if user.created_at else None,
-        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
-        "password_changed_at": user.password_changed_at.isoformat() if user.password_changed_at else None,
-        "login_history": [
+        "createdAt": user.created_at.isoformat() if user.created_at else None,
+        "lastLoginAt": user.last_login_at.isoformat() if user.last_login_at else None,
+        "passwordChangedAt": user.password_changed_at.isoformat() if user.password_changed_at else None,
+        "loginHistory": [
             {
-                "ip_address": row[0],
-                "user_agent": row[1],
-                "attempted_at": row[2],
+                "ipAddress": row[0],
+                "userAgent": row[1],
+                "attemptedAt": row[2],
                 "success": bool(row[3])
             }
             for row in login_history

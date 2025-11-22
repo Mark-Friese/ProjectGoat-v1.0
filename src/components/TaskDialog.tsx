@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -19,20 +19,40 @@ interface TaskDialogProps {
 }
 
 export function TaskDialog({ open, onClose, task, users, onSave }: TaskDialogProps) {
-  const [formData, setFormData] = useState<Partial<Task>>(
-    task || {
-      title: '',
-      description: '',
-      status: 'todo',
-      priority: 'medium',
-      progress: 0,
-      tags: [],
-      isBlocked: false,
-      isMilestone: false,
-      dependencies: [],
-      comments: [],
+  const [formData, setFormData] = useState<Partial<Task>>({
+    title: '',
+    description: '',
+    status: 'todo',
+    priority: 'medium',
+    progress: 0,
+    tags: [],
+    isBlocked: false,
+    isMilestone: false,
+    dependencies: [],
+    comments: [],
+  });
+
+  // Sync formData with task prop whenever it changes
+  useEffect(() => {
+    if (task) {
+      // Editing existing task - populate with task data
+      setFormData(task);
+    } else {
+      // Creating new task - reset to empty defaults
+      setFormData({
+        title: '',
+        description: '',
+        status: 'todo',
+        priority: 'medium',
+        progress: 0,
+        tags: [],
+        isBlocked: false,
+        isMilestone: false,
+        dependencies: [],
+        comments: [],
+      });
     }
-  );
+  }, [task]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -13,6 +13,7 @@ import {
 } from './ui/select';
 import { Users, Mail, Shield, CheckCircle, Clock, AlertCircle, Loader2 } from 'lucide-react';
 import * as userService from '../services/users';
+import { UserProfileDialog } from './UserProfileDialog';
 
 interface TeamViewProps {
   users: User[];
@@ -23,6 +24,8 @@ interface TeamViewProps {
 export function TeamView({ users, tasks, onUserUpdate }: TeamViewProps) {
   const [updatingUserId, setUpdatingUserId] = useState<string | null>(null);
   const [localUsers, setLocalUsers] = useState<User[]>(users);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [isUserProfileOpen, setIsUserProfileOpen] = useState(false);
 
   // Update local users when props change
   useEffect(() => {
@@ -58,6 +61,11 @@ export function TeamView({ users, tasks, onUserUpdate }: TeamViewProps) {
     } finally {
       setUpdatingUserId(null);
     }
+  };
+
+  const handleViewProfile = (userId: string) => {
+    setSelectedUserId(userId);
+    setIsUserProfileOpen(true);
   };
 
   const getUserStats = (userId: string) => {
@@ -278,7 +286,12 @@ export function TeamView({ users, tasks, onUserUpdate }: TeamViewProps) {
 
                   {/* Actions */}
                   <div className="flex gap-2 pt-2 border-t">
-                    <Button variant="outline" size="sm" className="flex-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => handleViewProfile(user.id)}
+                    >
                       View Profile
                     </Button>
                     <Button variant="outline" size="sm" className="flex-1">
@@ -329,6 +342,14 @@ export function TeamView({ users, tasks, onUserUpdate }: TeamViewProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* User Profile Dialog */}
+      <UserProfileDialog
+        open={isUserProfileOpen}
+        onOpenChange={setIsUserProfileOpen}
+        userId={selectedUserId}
+        users={localUsers}
+      />
     </div>
   );
 }
