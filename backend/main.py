@@ -22,6 +22,7 @@ import auth
 import rate_limiter
 import csrf
 from database import engine, get_db, SessionLocal
+from config import settings
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -68,10 +69,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS middleware
+# CORS middleware - supports local development and production
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:3001", "http://localhost:8000", "http://127.0.0.1:3000", "http://127.0.0.1:3001", "http://127.0.0.1:8000"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -82,6 +83,36 @@ app.add_middleware(SessionActivityMiddleware)
 
 # CSRF protection middleware
 app.add_middleware(csrf.CSRFMiddleware)
+
+
+# Security headers middleware (production only)
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """
+    Adds security headers to responses in production mode
+    - X-Content-Type-Options: Prevents MIME type sniffing
+    - X-Frame-Options: Prevents clickjacking
+    - X-XSS-Protection: Enables browser XSS protection
+    - Strict-Transport-Security: Forces HTTPS (production only)
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+
+        # Add security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+
+        # HSTS only in production (requires HTTPS)
+        if settings.is_production:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+        return response
+
+
+# Add security headers in all modes (HSTS only in production)
+app.add_middleware(SecurityHeadersMiddleware)
+
 
 # ==================== Health Check ====================
 

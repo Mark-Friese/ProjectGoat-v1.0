@@ -1,0 +1,8 @@
+# PostgreSQL Production Requirements
+# Use this file for online deployments with PostgreSQL
+
+# Include base requirements (SQLite-compatible)
+-r requirements.txt
+
+# PostgreSQL database adapter
+psycopg2-binary==2.9.9

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Task, User, TaskStatus } from '../types';
+import { Task, User, TaskStatus, Project } from '../types';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import { Avatar, AvatarFallback } from './ui/avatar';
@@ -9,6 +9,8 @@ import { motion } from 'motion/react';
 interface KanbanViewProps {
   tasks: Task[];
   users: User[];
+  projects?: Project[];
+  viewMode?: 'project' | 'personal';
   onTaskClick: (task: Task) => void;
   onTaskStatusChange: (taskId: string, newStatus: TaskStatus) => void;
 }
@@ -20,7 +22,7 @@ const columns: { id: TaskStatus; title: string; color: string }[] = [
   { id: 'done', title: 'Done', color: 'bg-green-100' },
 ];
 
-export function KanbanView({ tasks, users, onTaskClick, onTaskStatusChange }: KanbanViewProps) {
+export function KanbanView({ tasks, users, projects = [], viewMode = 'project', onTaskClick, onTaskStatusChange }: KanbanViewProps) {
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
 
   const handleDragStart = (task: Task) => {
@@ -83,6 +85,20 @@ export function KanbanView({ tasks, users, onTaskClick, onTaskStatusChange }: Ka
               <div className="flex-1 bg-gray-50 p-4 rounded-b-lg space-y-3 min-h-[500px]">
                 {columnTasks.map((task) => {
                   const assignee = users.find((u) => u.id === task.assigneeId);
+                  const project = projects.find((p) => p.id === task.projectId);
+
+                  // Use project color in personal view, priority color in project view
+                  const getBorderColor = () => {
+                    if (viewMode === 'personal' && project) {
+                      return project.color;
+                    }
+                    // Default to priority colors
+                    return task.priority === 'high'
+                      ? '#ef4444'
+                      : task.priority === 'medium'
+                      ? '#f59e0b'
+                      : '#3b82f6';
+                  };
 
                   return (
                     <motion.div
@@ -98,12 +114,7 @@ export function KanbanView({ tasks, users, onTaskClick, onTaskStatusChange }: Ka
                         onClick={() => onTaskClick(task)}
                         className="p-4 cursor-pointer hover:shadow-lg transition-shadow border-l-4"
                         style={{
-                          borderLeftColor:
-                            task.priority === 'high'
-                              ? '#ef4444'
-                              : task.priority === 'medium'
-                              ? '#f59e0b'
-                              : '#3b82f6',
+                          borderLeftColor: getBorderColor(),
                         }}
                       >
                         <div className="space-y-3">
@@ -119,6 +130,18 @@ export function KanbanView({ tasks, users, onTaskClick, onTaskStatusChange }: Ka
                           )}
 
                           <div className="flex flex-wrap gap-2">
+                            {viewMode === 'personal' && project && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs"
+                                style={{
+                                  borderColor: project.color,
+                                  color: project.color,
+                                }}
+                              >
+                                {project.name}
+                              </Badge>
+                            )}
                             {task.tags.map((tag) => (
                               <Badge key={tag} variant="outline" className="text-xs">
                                 {tag}

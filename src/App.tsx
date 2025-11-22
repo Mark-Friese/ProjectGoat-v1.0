@@ -20,7 +20,10 @@ import { WorkloadView } from './components/WorkloadView';
 import { TeamView } from './components/TeamView';
 import { ReportsView } from './components/ReportsView';
 import { ProfileView } from './components/ProfileView';
+import { ProjectsView } from './components/ProjectsView';
 import { TaskDialog } from './components/TaskDialog';
+import { ViewModeToggle } from './components/ViewModeToggle';
+import { ProjectSelector } from './components/ProjectSelector';
 import { Button } from './components/ui/button';
 import { Badge } from './components/ui/badge';
 import {
@@ -37,9 +40,10 @@ import {
   LogOut,
   KeyRound,
   UserCircle,
+  Briefcase,
 } from 'lucide-react';
 
-type View = 'dashboard' | 'kanban' | 'list' | 'gantt' | 'calendar' | 'workload' | 'team' | 'reports' | 'profile';
+type View = 'dashboard' | 'kanban' | 'list' | 'gantt' | 'calendar' | 'workload' | 'team' | 'reports' | 'profile' | 'projects';
 
 interface NavigationItem {
   id: View;
@@ -53,6 +57,7 @@ const navigationItems: NavigationItem[] = [
   { id: 'list', label: 'Task List', icon: List },
   { id: 'gantt', label: 'Gantt Chart', icon: GanttChartSquare },
   { id: 'calendar', label: 'Calendar', icon: Calendar },
+  { id: 'projects', label: 'Projects', icon: Briefcase },
   { id: 'workload', label: 'Team Workload', icon: Users },
   { id: 'team', label: 'Team Members', icon: Users },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
@@ -76,6 +81,10 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // View mode state for dual-perspective (Project vs Personal view)
+  const [viewMode, setViewMode] = useState<'project' | 'personal'>('project');
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   // Check for session and fetch initial data
   useEffect(() => {
@@ -134,6 +143,39 @@ export default function App() {
     initializeApp();
   }, []);
 
+  // Load view mode and selected project from localStorage on mount
+  useEffect(() => {
+    const savedViewMode = localStorage.getItem('viewMode');
+    const savedProjectId = localStorage.getItem('selectedProjectId');
+
+    if (savedViewMode && (savedViewMode === 'project' || savedViewMode === 'personal')) {
+      setViewMode(savedViewMode as 'project' | 'personal');
+    }
+
+    if (savedProjectId) {
+      setSelectedProjectId(savedProjectId);
+    }
+  }, []);
+
+  // Initialize selectedProjectId to first project when projects are loaded
+  useEffect(() => {
+    if (projects.length > 0 && !selectedProjectId) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects, selectedProjectId]);
+
+  // Save view mode to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('viewMode', viewMode);
+  }, [viewMode]);
+
+  // Save selected project to localStorage when it changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      localStorage.setItem('selectedProjectId', selectedProjectId);
+    }
+  }, [selectedProjectId]);
+
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
     setIsTaskDialogOpen(true);
@@ -152,6 +194,14 @@ export default function App() {
         setTasks(tasks.map((t) => (t.id === selectedTask.id ? updatedTask : t)));
       } else {
         // Create new task
+        // For projectId, prioritize: user selection > current project > first project
+        const defaultProjectId = taskData.projectId || selectedProjectId || projects[0]?.id;
+
+        if (!defaultProjectId) {
+          alert('Please select a project before creating a task.');
+          return;
+        }
+
         const newTaskData: Partial<Task> = {
           title: taskData.title || '',
           description: taskData.description || '',
@@ -166,7 +216,7 @@ export default function App() {
           isMilestone: taskData.isMilestone || false,
           dependencies: taskData.dependencies || [],
           storyPoints: taskData.storyPoints,
-          projectId: taskData.projectId || (projects[0]?.id || 'p1'),
+          projectId: defaultProjectId,
         };
         const createdTask = await taskService.createTask(newTaskData);
         setTasks([...tasks, createdTask]);
@@ -193,6 +243,31 @@ export default function App() {
     // Update current user if it's the same user
     if (currentUser && updatedUser.id === currentUser.id) {
       setCurrentUser(updatedUser);
+    }
+  };
+
+  const handleProjectCreate = async (projectData: Partial<Project>) => {
+    try {
+      const createdProject = await projectService.createProject(projectData);
+      setProjects([...projects, createdProject]);
+
+      // If this is the first project and no project is selected, select it
+      if (projects.length === 0) {
+        setSelectedProjectId(createdProject.id);
+      }
+    } catch (err) {
+      console.error('Failed to create project:', err);
+      alert('Failed to create project. Please try again.');
+    }
+  };
+
+  const handleProjectUpdate = async (updatedProject: Project) => {
+    try {
+      const updated = await projectService.updateProject(updatedProject.id, updatedProject);
+      setProjects(projects.map((p) => (p.id === updatedProject.id ? updated : p)));
+    } catch (err) {
+      console.error('Failed to update project:', err);
+      alert('Failed to update project. Please try again.');
     }
   };
 
@@ -276,31 +351,57 @@ export default function App() {
     setIsTimeoutWarningOpen(false);
   };
 
+  // Filter tasks based on view mode
+  const getFilteredTasks = () => {
+    if (viewMode === 'personal' && currentUser) {
+      // Personal view: Show only current user's tasks across all projects
+      return tasks.filter(task => task.assigneeId === currentUser.id);
+    } else if (viewMode === 'project' && selectedProjectId) {
+      // Project view: Show all tasks for selected project
+      return tasks.filter(task => task.projectId === selectedProjectId);
+    }
+    // Fallback: show all tasks
+    return tasks;
+  };
+
+  const filteredTasks = getFilteredTasks();
+
   const renderView = () => {
     switch (currentView) {
       case 'dashboard':
-        return <DashboardView tasks={tasks} users={users} projects={projects} />;
+        return <DashboardView tasks={filteredTasks} users={users} projects={projects} />;
       case 'kanban':
         return (
           <KanbanView
-            tasks={tasks}
+            tasks={filteredTasks}
             users={users}
+            projects={projects}
+            viewMode={viewMode}
             onTaskClick={handleTaskClick}
             onTaskStatusChange={handleTaskStatusChange}
           />
         );
       case 'list':
-        return <ListView tasks={tasks} users={users} onTaskClick={handleTaskClick} />;
+        return <ListView tasks={filteredTasks} users={users} onTaskClick={handleTaskClick} />;
       case 'gantt':
-        return <GanttView tasks={tasks} users={users} onTaskClick={handleTaskClick} />;
+        return <GanttView tasks={filteredTasks} users={users} onTaskClick={handleTaskClick} />;
       case 'calendar':
-        return <CalendarView tasks={tasks} users={users} onTaskClick={handleTaskClick} />;
+        return <CalendarView tasks={filteredTasks} users={users} onTaskClick={handleTaskClick} />;
+      case 'projects':
+        return (
+          <ProjectsView
+            projects={projects}
+            tasks={tasks}
+            onProjectUpdate={handleProjectUpdate}
+            onProjectCreate={handleProjectCreate}
+          />
+        );
       case 'workload':
-        return <WorkloadView tasks={tasks} users={users} onTaskClick={handleTaskClick} />;
+        return <WorkloadView tasks={filteredTasks} users={users} onTaskClick={handleTaskClick} />;
       case 'team':
-        return <TeamView users={users} tasks={tasks} onUserUpdate={handleUserUpdate} />;
+        return <TeamView users={users} tasks={filteredTasks} onUserUpdate={handleUserUpdate} />;
       case 'reports':
-        return <ReportsView tasks={tasks} users={users} risks={risks} issues={issues} />;
+        return <ReportsView tasks={filteredTasks} users={users} risks={risks} issues={issues} />;
       case 'profile':
         return currentUser ? (
           <ProfileView
@@ -310,11 +411,11 @@ export default function App() {
           />
         ) : null;
       default:
-        return <DashboardView tasks={tasks} users={users} projects={projects} />;
+        return <DashboardView tasks={filteredTasks} users={users} projects={projects} />;
     }
   };
 
-  const blockedTasksCount = tasks.filter((t: Task) => t.isBlocked).length;
+  const blockedTasksCount = filteredTasks.filter((t: Task) => t.isBlocked).length;
 
   // Show loading state
   if (isLoading) {
@@ -377,13 +478,29 @@ export default function App() {
           </button>
         </div>
 
-        {/* Project Selector */}
-        <div className="px-4 py-4 border-b">
-          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm text-gray-600">Current Project</p>
-            <p className="mt-1">{projects[0].name}</p>
+        {/* View Mode Toggle */}
+        <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
+
+        {/* Project Selector (Project View) or Personal Label (Personal View) */}
+        {viewMode === 'project' ? (
+          <ProjectSelector
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            onProjectChange={setSelectedProjectId}
+          />
+        ) : (
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-semibold">
+                {currentUser?.name.split(' ').map((n) => n[0]).join('') || '?'}
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase tracking-wider">My Tasks</p>
+                <p className="text-sm font-medium">{currentUser?.name || 'Personal View'}</p>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-1">
@@ -508,6 +625,9 @@ export default function App() {
         onClose={() => setIsTaskDialogOpen(false)}
         task={selectedTask}
         users={users}
+        projects={projects}
+        viewMode={viewMode}
+        selectedProjectId={selectedProjectId}
         onSave={handleSaveTask}
       />
 

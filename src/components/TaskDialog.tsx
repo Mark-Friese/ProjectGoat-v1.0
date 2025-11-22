@@ -6,8 +6,8 @@ import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
-import { Task, Priority, TaskStatus, User } from '../types';
-import { Calendar, Clock, Flag, Users, AlertCircle, X } from 'lucide-react';
+import { Task, Priority, TaskStatus, User, Project } from '../types';
+import { Calendar, Clock, Flag, Users, AlertCircle, X, Briefcase } from 'lucide-react';
 import { Progress } from './ui/progress';
 
 interface TaskDialogProps {
@@ -15,10 +15,22 @@ interface TaskDialogProps {
   onClose: () => void;
   task?: Task;
   users: User[];
+  projects?: Project[];
+  viewMode?: 'project' | 'personal';
+  selectedProjectId?: string | null;
   onSave: (task: Partial<Task>) => void;
 }
 
-export function TaskDialog({ open, onClose, task, users, onSave }: TaskDialogProps) {
+export function TaskDialog({
+  open,
+  onClose,
+  task,
+  users,
+  projects = [],
+  viewMode = 'project',
+  selectedProjectId = null,
+  onSave
+}: TaskDialogProps) {
   const [formData, setFormData] = useState<Partial<Task>>({
     title: '',
     description: '',
@@ -30,6 +42,7 @@ export function TaskDialog({ open, onClose, task, users, onSave }: TaskDialogPro
     isMilestone: false,
     dependencies: [],
     comments: [],
+    projectId: selectedProjectId || undefined,
   });
 
   // Sync formData with task prop whenever it changes
@@ -50,9 +63,10 @@ export function TaskDialog({ open, onClose, task, users, onSave }: TaskDialogPro
         isMilestone: false,
         dependencies: [],
         comments: [],
+        projectId: selectedProjectId || undefined,
       });
     }
-  }, [task]);
+  }, [task, selectedProjectId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,6 +184,47 @@ export function TaskDialog({ open, onClose, task, users, onSave }: TaskDialogPro
                 {users.map((user) => (
                   <SelectItem key={user.id} value={user.id}>
                     {user.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="project">
+              Project
+              {viewMode === 'project' && (
+                <span className="text-xs text-gray-500 ml-2">(locked to current project)</span>
+              )}
+            </Label>
+            <Select
+              value={formData.projectId}
+              onValueChange={(value) => setFormData({ ...formData, projectId: value })}
+              disabled={viewMode === 'project'}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select project...">
+                  {formData.projectId && projects.find(p => p.id === formData.projectId) && (
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: projects.find(p => p.id === formData.projectId)?.color }}
+                      />
+                      <span>{projects.find(p => p.id === formData.projectId)?.name}</span>
+                    </div>
+                  )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: project.color }}
+                      />
+                      <span>{project.name}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
