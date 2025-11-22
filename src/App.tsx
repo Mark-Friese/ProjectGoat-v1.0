@@ -20,6 +20,7 @@ import { WorkloadView } from './components/WorkloadView';
 import { TeamView } from './components/TeamView';
 import { ReportsView } from './components/ReportsView';
 import { ProfileView } from './components/ProfileView';
+import { ProjectsView } from './components/ProjectsView';
 import { TaskDialog } from './components/TaskDialog';
 import { ViewModeToggle } from './components/ViewModeToggle';
 import { ProjectSelector } from './components/ProjectSelector';
@@ -39,9 +40,10 @@ import {
   LogOut,
   KeyRound,
   UserCircle,
+  Briefcase,
 } from 'lucide-react';
 
-type View = 'dashboard' | 'kanban' | 'list' | 'gantt' | 'calendar' | 'workload' | 'team' | 'reports' | 'profile';
+type View = 'dashboard' | 'kanban' | 'list' | 'gantt' | 'calendar' | 'workload' | 'team' | 'reports' | 'profile' | 'projects';
 
 interface NavigationItem {
   id: View;
@@ -55,6 +57,7 @@ const navigationItems: NavigationItem[] = [
   { id: 'list', label: 'Task List', icon: List },
   { id: 'gantt', label: 'Gantt Chart', icon: GanttChartSquare },
   { id: 'calendar', label: 'Calendar', icon: Calendar },
+  { id: 'projects', label: 'Projects', icon: Briefcase },
   { id: 'workload', label: 'Team Workload', icon: Users },
   { id: 'team', label: 'Team Members', icon: Users },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
@@ -243,6 +246,31 @@ export default function App() {
     }
   };
 
+  const handleProjectCreate = async (projectData: Partial<Project>) => {
+    try {
+      const createdProject = await projectService.createProject(projectData);
+      setProjects([...projects, createdProject]);
+
+      // If this is the first project and no project is selected, select it
+      if (projects.length === 0) {
+        setSelectedProjectId(createdProject.id);
+      }
+    } catch (err) {
+      console.error('Failed to create project:', err);
+      alert('Failed to create project. Please try again.');
+    }
+  };
+
+  const handleProjectUpdate = async (updatedProject: Project) => {
+    try {
+      const updated = await projectService.updateProject(updatedProject.id, updatedProject);
+      setProjects(projects.map((p) => (p.id === updatedProject.id ? updated : p)));
+    } catch (err) {
+      console.error('Failed to update project:', err);
+      alert('Failed to update project. Please try again.');
+    }
+  };
+
   const handleLoginSuccess = async (user: User) => {
     // Set authentication state immediately to trigger UI update
     setCurrentUser(user);
@@ -359,6 +387,15 @@ export default function App() {
         return <GanttView tasks={filteredTasks} users={users} onTaskClick={handleTaskClick} />;
       case 'calendar':
         return <CalendarView tasks={filteredTasks} users={users} onTaskClick={handleTaskClick} />;
+      case 'projects':
+        return (
+          <ProjectsView
+            projects={projects}
+            tasks={tasks}
+            onProjectUpdate={handleProjectUpdate}
+            onProjectCreate={handleProjectCreate}
+          />
+        );
       case 'workload':
         return <WorkloadView tasks={filteredTasks} users={users} onTaskClick={handleTaskClick} />;
       case 'team':
