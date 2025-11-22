@@ -54,6 +54,7 @@ __pycache__/
 *.egg
 *.egg-info/
 venv/
+.venv/
 env/
 ENV/
 build/
@@ -69,6 +70,27 @@ var/
 wheels/
 *.manifest
 *.spec
+
+# Python virtual environments (all common names)
+venv/
+.venv/
+env/
+.env/
+ENV/
+virtualenv/
+
+# Database files (SQLite)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+projectgoat.db
+projectgoat-test.db
+
+# Sensitive deployment files
+.env
+.env.local
+.env.*.local
 
 # PyInstaller
 *.exe (except in dist/ if you want to commit the executable)
