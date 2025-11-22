@@ -80,6 +80,26 @@ class Settings:
         """Check if running in production mode"""
         return self.ENVIRONMENT == "production"
 
+    def validate(self) -> None:
+        """Validate configuration for production deployment"""
+        if self.is_production:
+            # Ensure SESSION_SECRET has been changed from default
+            if self.SESSION_SECRET == "development-secret-change-in-production":
+                raise ValueError(
+                    "SESSION_SECRET must be changed in production! "
+                    "Generate a secure secret with: "
+                    "python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+                )
+
+            # Warn if using SQLite in production (not recommended for multi-user)
+            if self.is_sqlite:
+                import warnings
+                warnings.warn(
+                    "Using SQLite in production is not recommended for multi-user scenarios. "
+                    "Consider using PostgreSQL by setting DATABASE_URL environment variable.",
+                    UserWarning
+                )
+
     def __repr__(self) -> str:
         """String representation for debugging"""
         db_type = "SQLite" if self.is_sqlite else "PostgreSQL" if self.is_postgres else "Unknown"
@@ -93,3 +113,6 @@ class Settings:
 
 # Global settings instance
 settings = Settings()
+
+# Validate configuration on startup
+settings.validate()

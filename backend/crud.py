@@ -3,11 +3,16 @@ CRUD Operations
 Database Create, Read, Update, Delete functions
 """
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
 from typing import List, Optional
 from datetime import datetime
-import models
-import schemas
+
+try:
+    from . import models
+    from . import schemas
+except ImportError:
+    import models
+    import schemas
+
 import json
 
 # ==================== Users ====================

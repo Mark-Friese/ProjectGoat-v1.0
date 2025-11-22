@@ -5,24 +5,38 @@ Defines all REST API endpoints
 from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import text
-from typing import List, Optional
+from sqlalchemy.exc import SQLAlchemyError, DatabaseError
+from typing import List, Optional, Dict
 from pathlib import Path
 from datetime import datetime
 import json
 import os
 
-import crud
-import models
-import schemas
-import auth
-import rate_limiter
-import csrf
-from database import engine, get_db, SessionLocal
-from config import settings
+# Try relative imports first (when run as package), fall back to absolute (when run standalone)
+try:
+    from . import crud
+    from . import models
+    from . import schemas
+    from . import auth
+    from . import rate_limiter
+    from . import csrf
+    from .database import engine, get_db, SessionLocal
+    from .config import settings
+    from .logging_config import logger
+except ImportError:
+    import crud
+    import models
+    import schemas
+    import auth
+    import rate_limiter
+    import csrf
+    from database import engine, get_db, SessionLocal
+    from config import settings
+    from logging_config import logger
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -51,9 +65,14 @@ class SessionActivityMiddleware(BaseHTTPMiddleware):
                     {"now": datetime.now().isoformat(), "session_id": session_id}
                 )
                 db.commit()
-            except Exception:
-                # Silently fail - don't block request if activity update fails
-                pass
+            except (SQLAlchemyError, DatabaseError) as e:
+                # Database errors are expected for invalid/expired sessions
+                logger.debug(f"Failed to update session activity: {e}")
+                db.rollback()
+            except Exception as e:
+                # Log unexpected errors but don't block the request
+                logger.error(f"Unexpected error in session activity middleware: {e}", exc_info=True)
+                db.rollback()
             finally:
                 db.close()
 
@@ -114,10 +133,31 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 app.add_middleware(SecurityHeadersMiddleware)
 
 
+# ==================== Global Exception Handler ====================
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """
+    Global exception handler for unhandled exceptions
+    Logs the error and returns a generic error response
+    """
+    logger.error(
+        f"Unhandled exception in {request.method} {request.url.path}: {exc}",
+        exc_info=True
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "path": request.url.path
+        }
+    )
+
+
 # ==================== Health Check ====================
 
 @app.get("/api/health")
-def health_check():
+def health_check() -> Dict[str, str]:
     """Health check endpoint"""
     return {"status": "ok", "message": "ProjectGoat API is running"}
 

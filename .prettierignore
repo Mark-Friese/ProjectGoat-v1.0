@@ -1,0 +1,51 @@
+# Prettier Ignore File
+# Files and directories that should NOT be formatted by Prettier
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+env/
+
+# Build outputs
+build/
+dist/
+*.min.js
+*.min.css
+
+# Lock files (don't format)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Python backend (formatted by Black)
+backend/
+
+# Generated files
+coverage/
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+__pycache__/
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+
+# Logs
+*.log
+logs/
+
+# Documentation that shouldn't be reformatted
+CHANGELOG.md
+LICENSE
+
+# Config files that are sensitive to formatting
+.github/
+
+# Database
+*.db
+*.db-journal

@@ -246,6 +246,18 @@ class LoginAttempt(Base):
 
 
 class UserPermission(Base):
+    """
+    User permissions table (PLANNED - NOT YET IMPLEMENTED)
+
+    Future feature for role-based access control (RBAC).
+    Will define granular permissions for different user roles.
+
+    Example usage:
+    - role='admin', resource='projects', action='delete', allowed=True
+    - role='viewer', resource='projects', action='delete', allowed=False
+
+    TODO: Implement permission checking middleware/decorators
+    """
     __tablename__ = "user_permissions"
 
     id = Column(String(50), primary_key=True)
@@ -256,6 +268,21 @@ class UserPermission(Base):
 
 
 class AuditLog(Base):
+    """
+    Audit log table (PLANNED - NOT YET IMPLEMENTED)
+
+    Future feature for tracking all user actions for security and compliance.
+    Will log all state-changing operations (create, update, delete).
+
+    Use cases:
+    - Security investigations
+    - Compliance audits
+    - User activity tracking
+    - Rollback/recovery
+
+    TODO: Implement audit logging middleware
+    TODO: Add automatic population via decorators or middleware
+    """
     __tablename__ = "audit_log"
 
     id = Column(String(50), primary_key=True)

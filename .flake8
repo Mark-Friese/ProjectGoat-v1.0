@@ -1,0 +1,65 @@
+# Flake8 Configuration for ProjectGoat
+# Python linter settings - checks for style and errors
+
+[flake8]
+# Line length to match Black
+max-line-length = 100
+
+# Complexity
+max-complexity = 10
+
+# Ignore specific error codes
+ignore =
+    # Black compatibility
+    E203,  # Whitespace before ':' (Black formats this)
+    W503,  # Line break before binary operator (Black style)
+    E501,  # Line too long (Black handles this, can be enabled later)
+
+    # Other
+    E402,  # Module level import not at top of file (sometimes necessary)
+
+# Exclude patterns
+exclude =
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    env,
+    ENV,
+    .eggs,
+    *.egg,
+    *.egg-info,
+    dist,
+    build,
+    migrations,
+    node_modules,
+    .pytest_cache,
+    .mypy_cache,
+    htmlcov,
+    .coverage,
+
+# File patterns to check
+filename = *.py
+
+# Per-file ignores (if needed)
+per-file-ignores =
+    # Allow star imports in __init__.py
+    __init__.py:F401,F403
+    # Allow unused imports in test conftest
+    conftest.py:F401
+
+# Show source code for errors
+show-source = True
+
+# Show error codes in output
+show-pep8 = True
+
+# Count errors
+count = True
+
+# Statistics
+statistics = True
+
+# Additional plugins (if installed)
+# flake8-bugbear: finds likely bugs and design problems
+# flake8-comprehensions: helps write better comprehensions
