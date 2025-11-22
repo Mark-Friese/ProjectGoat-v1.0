@@ -1,6 +1,10 @@
 """
 ProjectGoat Startup Script
-Starts FastAPI backend server
+Starts FastAPI backend server with environment-based configuration
+
+Supports dual-mode deployment:
+- Local (SQLite, localhost, development)
+- Online (PostgreSQL, production, cloud hosting)
 """
 import uvicorn
 import sys
@@ -10,17 +14,28 @@ from pathlib import Path
 backend_dir = Path(__file__).parent / "backend"
 sys.path.insert(0, str(backend_dir))
 
-# Configuration
-HOST = "127.0.0.1"  # localhost only (change to "0.0.0.0" to allow network access)
-PORT = 8000
+# Import settings after path setup
+from config import settings
+
 
 def main():
+    # Determine database type for display
+    if settings.is_sqlite:
+        db_type = "SQLite (Local)"
+    elif settings.is_postgres:
+        db_type = "PostgreSQL (Production)"
+    else:
+        db_type = "Unknown"
+
     print("=" * 60)
-    print("  ProjectGoat by TeamGoat")
+    print("  🐐 ProjectGoat by TeamGoat")
     print("=" * 60)
-    print(f"  Backend API: http://{HOST}:{PORT}/api")
-    print(f"  API Docs:    http://{HOST}:{PORT}/docs")
-    print(f"  Health:      http://{HOST}:{PORT}/api/health")
+    print(f"  Environment:  {settings.ENVIRONMENT}")
+    print(f"  Database:     {db_type}")
+    print(f"  Server:       http://{settings.HOST}:{settings.PORT}")
+    print(f"  Backend API:  http://{settings.HOST}:{settings.PORT}/api")
+    print(f"  API Docs:     http://{settings.HOST}:{settings.PORT}/docs")
+    print(f"  Health Check: http://{settings.HOST}:{settings.PORT}/api/health")
     print("=" * 60)
     print("  Press CTRL+C to stop the server")
     print("=" * 60)
@@ -30,9 +45,9 @@ def main():
         # Start uvicorn server
         uvicorn.run(
             "main:app",
-            host=HOST,
-            port=PORT,
-            reload=False,  # Set to True for development auto-reload
+            host=settings.HOST,
+            port=settings.PORT,
+            reload=settings.is_development,  # Auto-reload in development
             log_level="info"
         )
     except KeyboardInterrupt:
