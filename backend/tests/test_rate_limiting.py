@@ -56,7 +56,7 @@ class TestRateLimiting:
 
     def test_lockout_expires_after_15_minutes(self, client, sample_users, db_session):
         """Test that lockout expires after 15 minutes."""
-        from models import User
+        from models import LoginAttempt
 
         user = sample_users[0]
 
@@ -72,9 +72,10 @@ class TestRateLimiting:
         )
         assert response.status_code == 429
 
-        # Simulate 16 minutes passing
-        db_user = db_session.query(User).filter_by(email=user.email).first()
-        db_user.account_locked_until = datetime.utcnow() - timedelta(minutes=1)
+        # Simulate 16 minutes passing by updating all login_attempts timestamps
+        attempts = db_session.query(LoginAttempt).filter_by(email=user.email).all()
+        for attempt in attempts:
+            attempt.attempted_at = datetime.utcnow() - timedelta(minutes=16)
         db_session.commit()
 
         # Should be able to login now
@@ -85,7 +86,7 @@ class TestRateLimiting:
 
     def test_successful_login_resets_failed_attempts(self, client, sample_users, db_session):
         """Test that successful login resets failed attempt counter."""
-        from models import User
+        from models import LoginAttempt
 
         user = sample_users[0]
 
@@ -95,9 +96,11 @@ class TestRateLimiting:
                 "/api/auth/login", json={"email": user.email, "password": "WrongPassword123!"}
             )
 
-        # Verify failed attempts are recorded
-        db_user = db_session.query(User).filter_by(email=user.email).first()
-        assert db_user.failed_login_attempts == 3
+        # Verify failed attempts are recorded in login_attempts table
+        failed_attempts = (
+            db_session.query(LoginAttempt).filter_by(email=user.email, success=False).all()
+        )
+        assert len(failed_attempts) == 3
 
         # Successful login
         response = client.post(
@@ -105,9 +108,11 @@ class TestRateLimiting:
         )
         assert response.status_code == 200
 
-        # Failed attempts should be reset
-        db_session.refresh(db_user)
-        assert db_user.failed_login_attempts == 0
+        # Failed attempts should be cleared from the table
+        failed_attempts = (
+            db_session.query(LoginAttempt).filter_by(email=user.email, success=False).all()
+        )
+        assert len(failed_attempts) == 0
 
     def test_login_attempts_tracked(self, client, sample_users, db_session):
         """Test that login attempts are tracked in database."""

@@ -104,24 +104,22 @@ def record_login_attempt(
         user_agent: User agent string (optional)
         failure_reason: Reason for failure (optional)
     """
-    attempt_id = secrets.token_urlsafe(16)
     now = datetime.now()
 
     db.execute(
         text(
             """
             INSERT INTO login_attempts (
-                id, email, ip_address, user_agent, attempted_at,
+                email, ip_address, user_agent, attempted_at,
                 success, failure_reason
             )
             VALUES (
-                :id, :email, :ip_address, :user_agent, :attempted_at,
+                :email, :ip_address, :user_agent, :attempted_at,
                 :success, :failure_reason
             )
         """
         ),
         {
-            "id": attempt_id,
             "email": email,
             "ip_address": ip_address,
             "user_agent": user_agent,

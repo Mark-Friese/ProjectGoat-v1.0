@@ -244,7 +244,7 @@ class Issue(Base):
 class LoginAttempt(Base):
     __tablename__ = "login_attempts"
 
-    id = Column(String(50), primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     email = Column(String(200), nullable=False, index=True)
     ip_address = Column(String(45), nullable=True)
     user_agent = Column(Text, nullable=True)

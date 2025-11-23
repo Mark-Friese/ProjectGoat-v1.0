@@ -37,6 +37,7 @@ class TestTasksAPI:
         client, session_id, csrf_token, user = authenticated_client
 
         task_data = {
+            "id": "test_task_new",
             "title": "New Test Task",
             "description": "Task description",
             "status": "todo",
@@ -83,7 +84,7 @@ class TestTasksAPI:
             f"/api/tasks/{task.id}", headers=get_auth_headers(session_id, csrf_token)
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 204
 
         # Verify task is deleted
         response = client.get(f"/api/tasks/{task.id}", headers={"X-Session-ID": session_id})
@@ -136,6 +137,7 @@ class TestProjectsAPI:
         client, session_id, csrf_token, user = authenticated_client
 
         project_data = {
+            "id": "test_project_new",
             "name": "New Test Project",
             "description": "Project description",
             "start_date": "2025-01-01",
@@ -177,7 +179,7 @@ class TestProjectsAPI:
             f"/api/projects/{project.id}", headers=get_auth_headers(session_id, csrf_token)
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 204
 
 
 class TestUsersAPI:
@@ -265,6 +267,7 @@ class TestRisksAPI:
         client, session_id, csrf_token, user = authenticated_client
 
         risk_data = {
+            "id": "test_risk_new",
             "title": "Test Risk",
             "description": "Risk description",
             "probability": "high",
@@ -288,6 +291,7 @@ class TestRisksAPI:
 
         # Create risk first
         risk_data = {
+            "id": "test_risk_update",
             "title": "Test Risk",
             "probability": "high",
             "impact": "high",
@@ -317,6 +321,7 @@ class TestRisksAPI:
 
         # Create risk first
         risk_data = {
+            "id": "test_risk_delete",
             "title": "Test Risk",
             "probability": "high",
             "impact": "high",
@@ -333,7 +338,7 @@ class TestRisksAPI:
             f"/api/risks/{risk_id}", headers=get_auth_headers(session_id, csrf_token)
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 204
 
 
 class TestIssuesAPI:
@@ -353,6 +358,7 @@ class TestIssuesAPI:
         client, session_id, csrf_token, user = authenticated_client
 
         issue_data = {
+            "id": "test_issue_new",
             "title": "Test Issue",
             "description": "Issue description",
             "priority": "high",
@@ -375,6 +381,7 @@ class TestIssuesAPI:
 
         # Create issue first
         issue_data = {
+            "id": "test_issue_update",
             "title": "Test Issue",
             "priority": "high",
             "assignee_id": user.id,
@@ -403,6 +410,7 @@ class TestIssuesAPI:
 
         # Create issue first
         issue_data = {
+            "id": "test_issue_delete",
             "title": "Test Issue",
             "priority": "high",
             "assignee_id": user.id,
@@ -418,7 +426,7 @@ class TestIssuesAPI:
             f"/api/issues/{issue_id}", headers=get_auth_headers(session_id, csrf_token)
         )
 
-        assert response.status_code == 200
+        assert response.status_code == 204
 
 
 class TestAuthenticationRequired:

@@ -23,8 +23,12 @@ class UserCreate(UserBase):
     id: str = Field(..., max_length=50)
 
 
-class UserUpdate(UserBase):
-    pass
+class UserUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=200)
+    email: Optional[EmailStr] = None
+    role: Optional[str] = Field(None, pattern="^(admin|member|viewer)$")
+    avatar: Optional[str] = None
+    availability: Optional[bool] = None
 
 
 class User(UserBase):
@@ -75,13 +79,23 @@ class ProjectBase(BaseModel):
     end_date: date = Field(alias="endDate")
     color: str = Field(..., pattern="^#[0-9A-Fa-f]{6}$")  # Hex color
 
+    class Config:
+        populate_by_name = True
+
 
 class ProjectCreate(ProjectBase):
     id: str = Field(..., max_length=50)
 
 
-class ProjectUpdate(ProjectBase):
-    pass
+class ProjectUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = None
+    start_date: Optional[date] = Field(None, alias="startDate")
+    end_date: Optional[date] = Field(None, alias="endDate")
+    color: Optional[str] = Field(None, pattern="^#[0-9A-Fa-f]{6}$")
+
+    class Config:
+        populate_by_name = True
 
 
 class Project(ProjectBase):
@@ -98,6 +112,9 @@ class Project(ProjectBase):
 class CommentBase(BaseModel):
     user_id: str = Field(..., max_length=50, alias="userId")
     text: str
+
+    class Config:
+        populate_by_name = True
 
 
 class CommentCreate(CommentBase):
@@ -126,6 +143,9 @@ class BlockerCreate(BlockerBase):
 
 class BlockerResolve(BaseModel):
     resolution_notes: str = Field(alias="resolutionNotes")
+
+    class Config:
+        populate_by_name = True
 
 
 class Blocker(BlockerBase):
@@ -159,13 +179,33 @@ class TaskBase(BaseModel):
     parent_id: Optional[str] = Field(None, max_length=50, alias="parentId")
     project_id: str = Field(..., max_length=50, alias="projectId")
 
+    class Config:
+        populate_by_name = True
+
 
 class TaskCreate(TaskBase):
     id: str = Field(..., max_length=50)
 
 
-class TaskUpdate(TaskBase):
-    pass
+class TaskUpdate(BaseModel):
+    title: Optional[str] = Field(None, max_length=300)
+    description: Optional[str] = None
+    status: Optional[str] = Field(None, pattern="^(todo|in-progress|review|done)$")
+    priority: Optional[str] = Field(None, pattern="^(low|medium|high)$")
+    assignee_id: Optional[str] = Field(None, max_length=50, alias="assigneeId")
+    start_date: Optional[date] = Field(None, alias="startDate")
+    due_date: Optional[date] = Field(None, alias="dueDate")
+    progress: Optional[int] = Field(None, ge=0, le=100)
+    tags: Optional[List[str]] = None
+    is_blocked: Optional[bool] = Field(None, alias="isBlocked")
+    is_milestone: Optional[bool] = Field(None, alias="isMilestone")
+    dependencies: Optional[List[str]] = None
+    story_points: Optional[int] = Field(None, alias="storyPoints")
+    parent_id: Optional[str] = Field(None, max_length=50, alias="parentId")
+    project_id: Optional[str] = Field(None, max_length=50, alias="projectId")
+
+    class Config:
+        populate_by_name = True
 
 
 class TaskStatusUpdate(BaseModel):
@@ -192,6 +232,9 @@ class SprintBase(BaseModel):
     goals: List[str] = []
     task_ids: List[str] = Field([], alias="taskIds")
     velocity: int = 0
+
+    class Config:
+        populate_by_name = True
 
 
 class SprintCreate(SprintBase):
@@ -222,13 +265,25 @@ class RiskBase(BaseModel):
     mitigation: Optional[str] = None
     status: str = Field(..., pattern="^(open|mitigated|closed)$")
 
+    class Config:
+        populate_by_name = True
+
 
 class RiskCreate(RiskBase):
     id: str = Field(..., max_length=50)
 
 
-class RiskUpdate(RiskBase):
-    pass
+class RiskUpdate(BaseModel):
+    title: Optional[str] = Field(None, max_length=300)
+    description: Optional[str] = None
+    probability: Optional[str] = Field(None, pattern="^(low|medium|high)$")
+    impact: Optional[str] = Field(None, pattern="^(low|medium|high)$")
+    owner_id: Optional[str] = Field(None, max_length=50, alias="ownerId")
+    mitigation: Optional[str] = None
+    status: Optional[str] = Field(None, pattern="^(open|mitigated|closed)$")
+
+    class Config:
+        populate_by_name = True
 
 
 class Risk(RiskBase):
@@ -250,13 +305,24 @@ class IssueBase(BaseModel):
     status: str = Field(..., pattern="^(open|in-progress|resolved)$")
     related_task_ids: List[str] = Field([], alias="relatedTaskIds")
 
+    class Config:
+        populate_by_name = True
+
 
 class IssueCreate(IssueBase):
     id: str = Field(..., max_length=50)
 
 
-class IssueUpdate(IssueBase):
-    pass
+class IssueUpdate(BaseModel):
+    title: Optional[str] = Field(None, max_length=300)
+    description: Optional[str] = None
+    priority: Optional[str] = Field(None, pattern="^(low|medium|high)$")
+    assignee_id: Optional[str] = Field(None, max_length=50, alias="assigneeId")
+    status: Optional[str] = Field(None, pattern="^(open|in-progress|resolved)$")
+    related_task_ids: Optional[List[str]] = Field(None, alias="relatedTaskIds")
+
+    class Config:
+        populate_by_name = True
 
 
 class Issue(IssueBase):
@@ -286,6 +352,10 @@ class LoginResponse(BaseModel):
         populate_by_name = True
 
 
+class LogoutRequest(BaseModel):
+    session_id: str
+
+
 class SessionResponse(BaseModel):
     user: Optional[User] = None
     authenticated: bool
@@ -299,3 +369,7 @@ class ChangePasswordRequest(BaseModel):
 class ChangePasswordResponse(BaseModel):
     success: bool
     message: str
+    csrf_token: str = Field(alias="csrfToken")
+
+    class Config:
+        populate_by_name = True

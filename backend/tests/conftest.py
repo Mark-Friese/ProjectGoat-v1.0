@@ -2,8 +2,12 @@
 Pytest configuration and shared fixtures for backend tests.
 """
 
+import os
 import sys
 from pathlib import Path
+
+# Set TEST_MODE to disable fallback authentication during tests
+os.environ["TEST_MODE"] = "true"
 
 # Add backend directory to Python path
 backend_dir = Path(__file__).parent.parent

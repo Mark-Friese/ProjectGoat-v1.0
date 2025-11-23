@@ -43,7 +43,7 @@ def update_user(db: Session, user_id: str, user: schemas.UserUpdate) -> Optional
     db_user = get_user(db, user_id)
     if not db_user:
         return None
-    for key, value in user.model_dump().items():
+    for key, value in user.model_dump(exclude_unset=True).items():
         setattr(db_user, key, value)
     db.commit()
     db.refresh(db_user)
@@ -75,7 +75,7 @@ def update_project(
     db_project = get_project(db, project_id)
     if not db_project:
         return None
-    for key, value in project.model_dump(by_alias=False).items():
+    for key, value in project.model_dump(by_alias=False, exclude_unset=True).items():
         setattr(db_project, key, value)
     db.commit()
     db.refresh(db_project)
@@ -142,7 +142,7 @@ def update_task(db: Session, task_id: str, task: schemas.TaskUpdate) -> Optional
     if not db_task:
         return None
 
-    task_data = task.model_dump(by_alias=False, exclude={"comments", "blocker"})
+    task_data = task.model_dump(by_alias=False, exclude_unset=True, exclude={"comments", "blocker"})
 
     # Convert lists to JSON strings
     if "tags" in task_data:
@@ -309,7 +309,7 @@ def update_risk(db: Session, risk_id: str, risk: schemas.RiskUpdate) -> Optional
     db_risk = get_risk(db, risk_id)
     if not db_risk:
         return None
-    for key, value in risk.model_dump(by_alias=False).items():
+    for key, value in risk.model_dump(by_alias=False, exclude_unset=True).items():
         setattr(db_risk, key, value)
     db.commit()
     db.refresh(db_risk)
@@ -364,7 +364,7 @@ def update_issue(db: Session, issue_id: str, issue: schemas.IssueUpdate) -> Opti
     if not db_issue:
         return None
 
-    issue_data = issue.model_dump(by_alias=False)
+    issue_data = issue.model_dump(by_alias=False, exclude_unset=True)
 
     # Convert list to JSON string
     if "related_task_ids" in issue_data:

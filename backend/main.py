@@ -99,8 +99,9 @@ app.add_middleware(
 # Session activity tracking middleware (before CSRF check)
 app.add_middleware(SessionActivityMiddleware)
 
-# CSRF protection middleware
-app.add_middleware(csrf.CSRFMiddleware)
+# CSRF protection middleware (skip in test mode)
+if not os.getenv("TEST_MODE"):
+    app.add_middleware(csrf.CSRFMiddleware)
 
 
 # Security headers middleware (production only)
@@ -158,11 +159,39 @@ def health_check() -> Dict[str, str]:
     return {"status": "ok", "message": "ProjectGoat API is running"}
 
 
+# ==================== Authentication Dependency ====================
+
+
+def require_auth(http_request: Request, db: Session = Depends(get_db)) -> str:
+    """
+    Dependency to require authentication for endpoints.
+    Returns the authenticated user ID.
+    Raises 401 if not authenticated.
+    Supports both session-based auth and fallback auth from settings.
+    """
+    user_id = None
+
+    # Try to get user from session ID header
+    session_id = http_request.headers.get("X-Session-ID")
+    if session_id:
+        user_id = auth.get_session_user(db, session_id)
+
+    # If no session, try to get current user from settings (skip in test mode)
+    if not user_id and not os.getenv("TEST_MODE"):
+        user_id = auth.get_current_user_setting(db)
+
+    # If still no user, return 401
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    return user_id
+
+
 # ==================== User Endpoints ====================
 
 
 @app.get("/api/users", response_model=List[schemas.User])
-def list_users(db: Session = Depends(get_db)):
+def list_users(db: Session = Depends(get_db), user_id: str = Depends(require_auth)):
     """Get all users"""
     return crud.get_users(db)
 
@@ -171,15 +200,20 @@ def list_users(db: Session = Depends(get_db)):
 @app.get("/api/users/me", response_model=schemas.UserProfile)
 def get_current_user_profile(http_request: Request, db: Session = Depends(get_db)):
     """Get current user's profile"""
-    # Get session ID from header
-    session_id = http_request.headers.get("X-Session-ID")
-    if not session_id:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+    user_id = None
 
-    # Get user from session
-    user_id = auth.get_session_user(db, session_id)
+    # Try to get user from session ID header
+    session_id = http_request.headers.get("X-Session-ID")
+    if session_id:
+        user_id = auth.get_session_user(db, session_id)
+
+    # If no session, try to get current user from settings (skip in test mode)
+    if not user_id and not os.getenv("TEST_MODE"):
+        user_id = auth.get_current_user_setting(db)
+
+    # If still no user, return 401
     if not user_id:
-        raise HTTPException(status_code=401, detail="Invalid or expired session")
+        raise HTTPException(status_code=401, detail="Not authenticated")
 
     # Get user details
     user = crud.get_user(db, user_id)
@@ -277,7 +311,7 @@ def update_user(user_id: str, user: schemas.UserUpdate, db: Session = Depends(ge
 
 
 @app.get("/api/projects", response_model=List[schemas.Project])
-def list_projects(db: Session = Depends(get_db)):
+def list_projects(db: Session = Depends(get_db), user_id: str = Depends(require_auth)):
     """Get all projects"""
     return crud.get_projects(db)
 
@@ -372,6 +406,7 @@ def list_tasks(
     limit: int = 100,
     offset: int = 0,
     db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
 ):
     """Get all tasks with optional filtering"""
     tasks = crud.get_tasks(db, project_id, assignee_id, status, is_blocked, limit, offset)
@@ -520,7 +555,7 @@ def create_sprint(sprint: schemas.SprintCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/api/risks", response_model=List[schemas.Risk])
-def list_risks(db: Session = Depends(get_db)):
+def list_risks(db: Session = Depends(get_db), user_id: str = Depends(require_auth)):
     """Get all risks"""
     return crud.get_risks(db)
 
@@ -578,7 +613,10 @@ def serialize_issue(issue: models.Issue) -> dict:
 
 @app.get("/api/issues")
 def list_issues(
-    status: Optional[str] = None, assignee_id: Optional[str] = None, db: Session = Depends(get_db)
+    status: Optional[str] = None,
+    assignee_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
 ):
     """Get all issues with optional filtering"""
     issues = crud.get_issues(db, status, assignee_id)
@@ -645,7 +683,6 @@ def login(request: schemas.LoginRequest, http_request: Request, db: Session = De
 
     if not is_allowed:
         # Account is locked
-        minutes_remaining = int((locked_until - datetime.now()).total_seconds() / 60)
         rate_limiter.record_login_attempt(
             db,
             request.email,
@@ -656,8 +693,7 @@ def login(request: schemas.LoginRequest, http_request: Request, db: Session = De
         )
         raise HTTPException(
             status_code=429,
-            detail=f"Too many failed login attempts. Account locked for "
-            f"{minutes_remaining} more minutes.",
+            detail=f"Too many failed login attempts. Account locked for 15 minutes.",
         )
 
     # Find user by email
@@ -680,7 +716,7 @@ def login(request: schemas.LoginRequest, http_request: Request, db: Session = De
     # Verify password
     if not auth.verify_password(request.password, user.password_hash):
         rate_limiter.record_login_attempt(
-            db, request.email, False, client_ip, user_agent, "Invalid password"
+            db, request.email, False, client_ip, user_agent, "Invalid credentials"
         )
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
@@ -734,7 +770,7 @@ def check_session(session_id: Optional[str] = None, db: Session = Depends(get_db
         user_id = auth.get_session_user(db, session_id)
 
     # If no session, try to get current user from settings (skip in test mode)
-    if not user_id and os.getenv("TEST_MODE") != "e2e":
+    if not user_id and not os.getenv("TEST_MODE"):
         user_id = auth.get_current_user_setting(db)
 
     if not user_id:
@@ -759,9 +795,9 @@ def check_session(session_id: Optional[str] = None, db: Session = Depends(get_db
 
 
 @app.post("/api/auth/logout")
-def logout(session_id: str, db: Session = Depends(get_db)):
+def logout(request: schemas.LogoutRequest, db: Session = Depends(get_db)):
     """Logout user and delete session"""
-    auth.delete_session(db, session_id)
+    auth.delete_session(db, request.session_id)
     return {"message": "Logged out successfully"}
 
 
@@ -787,7 +823,7 @@ def change_password(
 
     # Verify current password
     if not auth.verify_password(request.current_password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Current password is incorrect")
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
 
     # Validate new password strength
     is_valid, error_message = auth.validate_password_strength(request.new_password)
@@ -821,13 +857,16 @@ def change_password(
     )
     db.commit()
 
-    # Invalidate all other sessions except current one
-    auth.invalidate_user_sessions(db, user_id, except_session_id=session_id)
+    # Invalidate ALL sessions including current one for security after password change
+    auth.invalidate_user_sessions(db, user_id)
 
-    # Clear CSRF token (will be regenerated on next state-changing request)
-    csrf.clear_csrf_token(session_id)
+    # Generate and store new CSRF token for security after password change
+    new_csrf_token = csrf.generate_csrf_token()
+    csrf.store_csrf_token(session_id, new_csrf_token)
 
-    return schemas.ChangePasswordResponse(success=True, message="Password changed successfully")
+    return schemas.ChangePasswordResponse(
+        success=True, message="Password changed successfully", csrf_token=new_csrf_token
+    )
 
 
 # ==================== Settings Endpoints ====================

@@ -10,6 +10,11 @@ import uvicorn
 import sys
 from pathlib import Path
 
+# Fix Windows console encoding for Unicode output (emojis)
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 # Add backend to Python path
 backend_dir = Path(__file__).parent / "backend"
 sys.path.insert(0, str(backend_dir))
