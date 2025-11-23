@@ -7,10 +7,16 @@ A comprehensive project management application designed for personal use on a wo
 ### Core Functionality
 
 - **Task Management**: Create, assign, and track tasks with multiple status states
+  - Subtasks (parent-child relationships)
+  - Task progress tracking (0-100%)
+  - Story points for agile planning
+  - Milestone markers
+  - Task dependencies
+  - Custom tags
 - **Multiple Views**: Dashboard, Kanban Board, List View, Gantt Chart, Calendar, Team Workload, Reports
-- **User Management**: Full user CRUD with role-based access (Admin, Member, Viewer)
-- **Project Management**: Organize work into projects with deadlines and priorities
-- **Sprint Planning**: Plan and track sprints with start/end dates
+- **User Management**: Full user CRUD with role tracking (Admin, Member, Viewer - enforcement planned)
+- **Project Management**: Organize work into projects with deadlines, priorities, and color coding
+- **Sprint Planning**: Plan and track sprints with start/end dates and velocity tracking
 - **Risk & Issue Tracking**: Identify and manage project risks and issues
 - **Blocker Management**: Track and resolve task dependencies and blockers
 
@@ -43,28 +49,68 @@ A comprehensive project management application designed for personal use on a wo
 
 ## Quick Start
 
+### Prerequisites
+
+- Python 3.9+ (3.13 recommended)
+- Node.js 16+
+- Git
+
 ### Development Setup
 
-1. **Install Dependencies**
+1. **Clone Repository**
+
+   ```bash
+   git clone <repository-url>
+   cd ProjectGoat
+   ```
+
+2. **Set Up Python Virtual Environment**
+
+   ```bash
+   # Create virtual environment
+   python -m venv .venv
+
+   # Activate virtual environment
+   # Windows:
+   .venv\Scripts\activate
+   # Mac/Linux:
+   source .venv/bin/activate
+   ```
+
+3. **Install Backend Dependencies**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Install Frontend Dependencies**
 
    ```bash
    npm install
    ```
 
-2. **Initialize Database**
+5. **Initialize Database**
 
    ```bash
    python backend/init_db.py
    ```
 
-3. **Start Development Server**
+6. **Start Backend Server**
 
    ```bash
+   # In terminal 1 (with venv activated):
+   python run.py
+   ```
+
+7. **Start Frontend Development Server**
+
+   ```bash
+   # In terminal 2:
    npm run dev
    ```
 
-4. **Access Application**
-   - Frontend: <http://localhost:5173>
+8. **Access Application**
+   - Frontend: <http://localhost:3000>
    - Backend API: <http://localhost:8000>
    - API Documentation: <http://localhost:8000/docs>
 
@@ -135,12 +181,12 @@ Sessions are tracked server-side with activity monitoring. All sessions are inva
 
 ## Production Deployment
 
-For production deployment instructions, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+For production deployment instructions, see [Deployment Guide](docs/guides/deployment.md).
 
 Quick deployment steps:
 
 1. Build frontend: `npm run build`
-2. Install backend dependencies: `pip install -r backend/requirements.txt`
+2. Install backend dependencies: `pip install -r requirements.txt`
 3. Initialize database: `python backend/init_db.py`
 4. Start application: `python run.py`
 5. Access at: <http://localhost:8000>
@@ -149,24 +195,44 @@ Quick deployment steps:
 
 Comprehensive documentation is available in the `docs/` directory:
 
-- [REQUIREMENTS.md](docs/REQUIREMENTS.md) - Feature requirements and specifications
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture and design
-- [DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) - Database schema and relationships
-- [API_ENDPOINTS.md](docs/API_ENDPOINTS.md) - API endpoint documentation
-- [DEPLOYMENT.md](docs/DEPLOYMENT.md) - Deployment guide and procedures
-- [CONSTRAINTS.md](docs/CONSTRAINTS.md) - Environment constraints and limitations
+### Guides
+
+- [Deployment Guide](docs/guides/deployment.md) - Deployment procedures and configuration
+- [Testing Guide](docs/guides/testing.md) - Running and writing tests
+- [Frontend Development](docs/guides/frontend-development.md) - Frontend architecture and development
+- [Database Migrations](docs/guides/migrations.md) - Database migration guide
+- [Troubleshooting](docs/guides/troubleshooting.md) - Common issues and solutions
+- [Environment Variables](docs/guides/environment-variables.md) - Configuration reference
+- [Automation Setup](docs/guides/automation-setup.md) - Pre-commit hooks and code quality
+
+### Reference
+
+- [API Endpoints](docs/reference/api-endpoints.md) - Complete API documentation
+- [Database Schema](docs/reference/database-schema.md) - Database structure and relationships
+
+### Architecture
+
+- [System Design](docs/architecture/system-design.md) - System architecture overview
+- [Requirements](docs/architecture/requirements.md) - Feature requirements and specifications
+- [Constraints](docs/architecture/constraints.md) - Environment constraints and limitations
+- [Neurodivergent Features](docs/architecture/neurodivergent-features.md) - Accessibility feature planning
 
 ## Development
 
 ### Running Tests
 
 ```bash
-# Frontend tests (when implemented)
-npm test
+# Backend tests
+python -m pytest
 
-# Backend tests (when implemented)
-pytest
+# Backend tests with coverage
+python -m pytest --cov=backend --cov-report=html
+
+# End-to-end tests
+npm run test:e2e
 ```
+
+For detailed testing instructions, see the [Testing Guide](docs/guides/testing.md).
 
 ### Database Migrations
 

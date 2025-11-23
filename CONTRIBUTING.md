@@ -48,8 +48,8 @@ welcoming and inclusive community.
    # Backend tests
    python -m pytest
 
-   # Frontend tests (if applicable)
-   npm test
+   # End-to-end tests (if applicable)
+   npm run test:e2e
    ```
 
 5. **Commit with clear messages**
@@ -73,7 +73,7 @@ welcoming and inclusive community.
 
 ### Prerequisites
 
-- Python 3.9 or higher
+- Python 3.9+ (3.13 recommended)
 - Node.js 16 or higher
 - Git
 
@@ -182,19 +182,20 @@ python -m pytest tests/test_auth.py
 ### Frontend Tests
 
 ```bash
-# Run unit tests
-npm test
-
 # Run E2E tests
 npm run test:e2e
+
+# Unit tests not yet implemented
 ```
 
 ## Documentation
 
 - Update README.md for user-facing changes
-- Update DEPLOYMENT.md for deployment-related changes
+- Update relevant guides in `docs/guides/` for specific changes
 - Add docstrings to new Python functions
 - Add comments for complex logic
+
+See the [Testing Guide](docs/guides/testing.md) for detailed testing instructions.
 
 ## Questions?
 
