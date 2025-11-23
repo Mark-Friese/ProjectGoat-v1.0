@@ -133,3 +133,6 @@ nul
 # Deployment artifacts
 *-Deployment/
 *-Deployment.zip
+
+# Claude Code configuration (local only)
+.claude/
