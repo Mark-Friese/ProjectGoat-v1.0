@@ -208,8 +208,8 @@ jobs:
 
           :: Install/update dependencies
           echo [5/7] Installing Python dependencies...
-          pip install -q --upgrade pip
-          pip install -q -r requirements.txt
+          pip install --quiet --disable-pip-version-check --upgrade pip
+          pip install --quiet --disable-pip-version-check -r requirements.txt
           if errorlevel 1 (
               echo ERROR: Failed to install dependencies
               pause
