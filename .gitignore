@@ -107,4 +107,25 @@ projectgoat-test.db
 .cache/
 .parcel-cache/
 .vite/
-*.db
+
+# Test Coverage and Reports
+.coverage
+coverage.xml
+htmlcov/
+
+# E2E Testing (includes failed test screenshots)
+playwright-report/
+test-results/
+
+# Debug files
+debug*.txt
+debug_test.py
+
+# Python pytest cache
+.pytest_cache/
+
+# Local IDE configuration
+.claude/settings.local.json
+
+# Windows null device files
+nul
