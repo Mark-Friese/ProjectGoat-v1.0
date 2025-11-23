@@ -2,6 +2,7 @@
 Logging configuration for ProjectGoat
 Provides structured logging for development and production environments
 """
+
 import logging
 import sys
 from pathlib import Path
@@ -28,17 +29,14 @@ def setup_logging():
 
     # Configure root logger
     logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[]
+        level=log_level, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", handlers=[]
     )
 
     # Console handler (always enabled)
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
     console_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
     )
     console_handler.setFormatter(console_formatter)
 
@@ -48,8 +46,8 @@ def setup_logging():
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(logging.INFO)
         file_formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
         file_handler.setFormatter(file_formatter)
         handlers.append(file_handler)

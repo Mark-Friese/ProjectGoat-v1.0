@@ -2,13 +2,15 @@
 Authentication and Session Management
 Handles password hashing, session creation, and validation
 """
-import bcrypt
-import secrets
+
 import re
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
-from sqlalchemy.orm import Session as DBSession
+
+import bcrypt
 from models import UserSession
+from sqlalchemy.orm import Session as DBSession
 
 # Session timeout configuration
 IDLE_TIMEOUT_MINUTES = 30  # Logout after 30 minutes of inactivity
@@ -18,15 +20,15 @@ ABSOLUTE_TIMEOUT_HOURS = 8  # Logout after 8 hours regardless of activity
 def hash_password(password: str) -> str:
     """Hash a password using bcrypt"""
     salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-    return hashed.decode('utf-8')
+    hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
+    return hashed.decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:
     """Verify a password against its hash"""
     if hashed is None:
         return False  # Prevent crash when password_hash is NULL
-    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 
 def create_session(db: DBSession, user_id: str, expires_days: int = 30) -> str:
@@ -42,7 +44,7 @@ def create_session(db: DBSession, user_id: str, expires_days: int = 30) -> str:
         expires_at=expires_at,
         last_accessed=created_at,
         is_active=True,
-        last_activity_at=created_at
+        last_activity_at=created_at,
     )
     db.add(session)
     db.commit()
@@ -65,18 +67,14 @@ def get_session_user(db: DBSession, session_id: str) -> Optional[str]:
         return None
 
     # Check absolute timeout (8 hours from creation)
-    absolute_timeout = session.created_at + timedelta(
-        hours=ABSOLUTE_TIMEOUT_HOURS
-    )
+    absolute_timeout = session.created_at + timedelta(hours=ABSOLUTE_TIMEOUT_HOURS)
     if now > absolute_timeout:
         delete_session(db, session_id)
         return None
 
     # Check idle timeout (30 minutes since last activity)
     if session.last_activity_at:
-        idle_timeout = session.last_activity_at + timedelta(
-            minutes=IDLE_TIMEOUT_MINUTES
-        )
+        idle_timeout = session.last_activity_at + timedelta(minutes=IDLE_TIMEOUT_MINUTES)
         if now > idle_timeout:
             delete_session(db, session_id)
             return None
@@ -100,6 +98,7 @@ def delete_session(db: DBSession, session_id: str):
 def get_current_user_setting(db: DBSession) -> Optional[str]:
     """Get the current user ID from app settings"""
     from sqlalchemy import text
+
     result = db.execute(
         text("SELECT value FROM app_settings WHERE key = 'current_user_id'")
     ).fetchone()
@@ -110,12 +109,15 @@ def get_current_user_setting(db: DBSession) -> Optional[str]:
 def set_current_user_setting(db: DBSession, user_id: str):
     """Set the current user ID in app settings"""
     from sqlalchemy import text
+
     db.execute(
-        text("""
+        text(
+            """
             INSERT OR REPLACE INTO app_settings (key, value, updated_at)
             VALUES ('current_user_id', :user_id, :updated_at)
-        """),
-        {"user_id": user_id, "updated_at": datetime.now().isoformat()}
+        """
+        ),
+        {"user_id": user_id, "updated_at": datetime.now().isoformat()},
     )
     db.commit()
 
@@ -137,13 +139,13 @@ def validate_password_strength(password: str) -> Tuple[bool, str]:
     if len(password) < 8:
         return (False, "Password must be at least 8 characters long")
 
-    if not re.search(r'[A-Z]', password):
+    if not re.search(r"[A-Z]", password):
         return (False, "Password must contain at least one uppercase letter")
 
-    if not re.search(r'[a-z]', password):
+    if not re.search(r"[a-z]", password):
         return (False, "Password must contain at least one lowercase letter")
 
-    if not re.search(r'\d', password):
+    if not re.search(r"\d", password):
         return (False, "Password must contain at least one number")
 
     if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
@@ -152,11 +154,7 @@ def validate_password_strength(password: str) -> Tuple[bool, str]:
     return (True, "")
 
 
-def invalidate_user_sessions(
-    db: DBSession,
-    user_id: str,
-    except_session_id: Optional[str] = None
-):
+def invalidate_user_sessions(db: DBSession, user_id: str, except_session_id: Optional[str] = None):
     """
     Invalidate all sessions for a user
 

@@ -2,11 +2,14 @@
 Pydantic Schemas for Request/Response Validation
 Handles data validation and serialization
 """
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List
+
 from datetime import date, datetime
+from typing import List, Optional
+
+from pydantic import BaseModel, EmailStr, Field
 
 # ==================== User Schemas ====================
+
 
 class UserBase(BaseModel):
     name: str = Field(..., max_length=200)
@@ -15,11 +18,14 @@ class UserBase(BaseModel):
     avatar: Optional[str] = None
     availability: bool = True
 
+
 class UserCreate(UserBase):
     id: str = Field(..., max_length=50)
 
+
 class UserUpdate(UserBase):
     pass
+
 
 class User(UserBase):
     id: str
@@ -27,10 +33,12 @@ class User(UserBase):
     class Config:
         from_attributes = True
 
+
 class ProfileUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=200)
     email: Optional[EmailStr] = None
     role: Optional[str] = None  # Will be validated to prevent self-elevation
+
 
 class LoginHistoryEntry(BaseModel):
     ip_address: Optional[str] = Field(None, alias="ipAddress")
@@ -40,6 +48,7 @@ class LoginHistoryEntry(BaseModel):
 
     class Config:
         populate_by_name = True
+
 
 class UserProfile(BaseModel):
     id: str
@@ -58,6 +67,7 @@ class UserProfile(BaseModel):
 
 # ==================== Project Schemas ====================
 
+
 class ProjectBase(BaseModel):
     name: str = Field(..., max_length=200)
     description: Optional[str] = None
@@ -65,11 +75,14 @@ class ProjectBase(BaseModel):
     end_date: date = Field(alias="endDate")
     color: str = Field(..., pattern="^#[0-9A-Fa-f]{6}$")  # Hex color
 
+
 class ProjectCreate(ProjectBase):
     id: str = Field(..., max_length=50)
 
+
 class ProjectUpdate(ProjectBase):
     pass
+
 
 class Project(ProjectBase):
     id: str
@@ -81,12 +94,15 @@ class Project(ProjectBase):
 
 # ==================== Comment Schemas ====================
 
+
 class CommentBase(BaseModel):
     user_id: str = Field(..., max_length=50, alias="userId")
     text: str
 
+
 class CommentCreate(CommentBase):
     pass
+
 
 class Comment(CommentBase):
     id: str
@@ -99,14 +115,18 @@ class Comment(CommentBase):
 
 # ==================== Blocker Schemas ====================
 
+
 class BlockerBase(BaseModel):
     description: str
+
 
 class BlockerCreate(BlockerBase):
     pass
 
+
 class BlockerResolve(BaseModel):
     resolution_notes: str = Field(alias="resolutionNotes")
+
 
 class Blocker(BlockerBase):
     id: str
@@ -120,6 +140,7 @@ class Blocker(BlockerBase):
 
 
 # ==================== Task Schemas ====================
+
 
 class TaskBase(BaseModel):
     title: str = Field(..., max_length=300)
@@ -138,14 +159,18 @@ class TaskBase(BaseModel):
     parent_id: Optional[str] = Field(None, max_length=50, alias="parentId")
     project_id: str = Field(..., max_length=50, alias="projectId")
 
+
 class TaskCreate(TaskBase):
     id: str = Field(..., max_length=50)
+
 
 class TaskUpdate(TaskBase):
     pass
 
+
 class TaskStatusUpdate(BaseModel):
     status: str = Field(..., pattern="^(todo|in-progress|review|done)$")
+
 
 class Task(TaskBase):
     id: str
@@ -159,6 +184,7 @@ class Task(TaskBase):
 
 # ==================== Sprint Schemas ====================
 
+
 class SprintBase(BaseModel):
     name: str = Field(..., max_length=200)
     start_date: date = Field(alias="startDate")
@@ -167,11 +193,14 @@ class SprintBase(BaseModel):
     task_ids: List[str] = Field([], alias="taskIds")
     velocity: int = 0
 
+
 class SprintCreate(SprintBase):
     id: str = Field(..., max_length=50)
 
+
 class SprintUpdate(SprintBase):
     pass
+
 
 class Sprint(SprintBase):
     id: str
@@ -183,6 +212,7 @@ class Sprint(SprintBase):
 
 # ==================== Risk Schemas ====================
 
+
 class RiskBase(BaseModel):
     title: str = Field(..., max_length=300)
     description: Optional[str] = None
@@ -192,11 +222,14 @@ class RiskBase(BaseModel):
     mitigation: Optional[str] = None
     status: str = Field(..., pattern="^(open|mitigated|closed)$")
 
+
 class RiskCreate(RiskBase):
     id: str = Field(..., max_length=50)
 
+
 class RiskUpdate(RiskBase):
     pass
+
 
 class Risk(RiskBase):
     id: str
@@ -208,6 +241,7 @@ class Risk(RiskBase):
 
 # ==================== Issue Schemas ====================
 
+
 class IssueBase(BaseModel):
     title: str = Field(..., max_length=300)
     description: Optional[str] = None
@@ -216,11 +250,14 @@ class IssueBase(BaseModel):
     status: str = Field(..., pattern="^(open|in-progress|resolved)$")
     related_task_ids: List[str] = Field([], alias="relatedTaskIds")
 
+
 class IssueCreate(IssueBase):
     id: str = Field(..., max_length=50)
 
+
 class IssueUpdate(IssueBase):
     pass
+
 
 class Issue(IssueBase):
     id: str
@@ -234,9 +271,11 @@ class Issue(IssueBase):
 
 # ==================== Authentication Schemas ====================
 
+
 class LoginRequest(BaseModel):
     email: str
     password: str
+
 
 class LoginResponse(BaseModel):
     session_id: str = Field(alias="sessionId")
@@ -246,13 +285,16 @@ class LoginResponse(BaseModel):
     class Config:
         populate_by_name = True
 
+
 class SessionResponse(BaseModel):
     user: Optional[User] = None
     authenticated: bool
 
+
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
+
 
 class ChangePasswordResponse(BaseModel):
     success: bool

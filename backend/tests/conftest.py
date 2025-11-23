@@ -1,6 +1,7 @@
 """
 Pytest configuration and shared fixtures for backend tests.
 """
+
 import sys
 from pathlib import Path
 
@@ -8,17 +9,15 @@ from pathlib import Path
 backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
+import crud
 import pytest
+from database import Base, get_db
 from fastapi.testclient import TestClient
+from main import app
+from models import Issue, LoginAttempt, Project, Risk, Task, User, UserSession
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-
-from main import app
-from database import Base, get_db
-from models import User, Project, Task, Risk, Issue, LoginAttempt, UserSession
-import crud
-
 
 # In-memory SQLite database for testing
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -45,13 +44,17 @@ def db_session():
     session = TestingSessionLocal()
 
     # Create app_settings table (not part of Base models - managed via raw SQL)
-    session.execute(text("""
+    session.execute(
+        text(
+            """
         CREATE TABLE IF NOT EXISTS app_settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL,
             updated_at DATETIME NOT NULL
         )
-    """))
+    """
+        )
+    )
     session.commit()
 
     try:
@@ -67,6 +70,7 @@ def client(db_session):
     """
     Create a test client with test database.
     """
+
     def override_get_db():
         try:
             yield db_session
@@ -86,9 +90,10 @@ def sample_users(db_session):
     """
     Create sample users for testing.
     """
+    from datetime import datetime
+
     from auth import hash_password
     from models import User
-    from datetime import datetime
 
     users = [
         {
@@ -120,7 +125,7 @@ def sample_users(db_session):
             password_hash=hash_password(password),
             is_active=True,
             availability=True,
-            created_at=datetime.utcnow()
+            created_at=datetime.utcnow(),
         )
         user.password = password  # Store plain password for testing
 
@@ -136,8 +141,9 @@ def sample_projects(db_session):
     """
     Create sample projects for testing.
     """
-    from models import Project
     from datetime import date
+
+    from models import Project
 
     projects = [
         {
@@ -165,8 +171,9 @@ def sample_tasks(db_session, sample_users, sample_projects):
     """
     Create sample tasks for testing.
     """
-    from models import Task
     from datetime import date
+
+    from models import Task
 
     tasks = [
         {
@@ -204,10 +211,7 @@ def authenticated_client(client, sample_users, db_session):
     user = sample_users[0]
 
     # Login to get session
-    response = client.post(
-        "/api/auth/login",
-        json={"email": user.email, "password": user.password}
-    )
+    response = client.post("/api/auth/login", json={"email": user.email, "password": user.password})
 
     assert response.status_code == 200
     data = response.json()

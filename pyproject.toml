@@ -17,7 +17,7 @@ requires-python = ">=3.11"
 # ========================================
 [tool.black]
 line-length = 100
-target-version = ['py311']
+target-version = ['py313']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -133,7 +133,7 @@ directory = "htmlcov"
 # MYPY - Static Type Checker
 # ========================================
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false  # Set to true for strict mode

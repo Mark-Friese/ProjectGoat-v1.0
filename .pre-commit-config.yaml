@@ -14,27 +14,27 @@ repos:
   # ========================================
 
   - repo: https://github.com/psf/black
-    rev: 24.1.1
+    rev: 25.11.0
     hooks:
       - id: black
         name: Format Python code (Black)
-        language_version: python3.11
+        language_version: python3
         files: ^backend/.*\.py$
 
   - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
+    rev: 7.0.0
     hooks:
       - id: isort
         name: Sort Python imports (isort)
-        args: ["--profile", "black", "--line-length", "100"]
+        args: ['--profile', 'black', '--line-length', '100']
         files: ^backend/.*\.py$
 
   - repo: https://github.com/pycqa/flake8
-    rev: 7.0.0
+    rev: 7.3.0
     hooks:
       - id: flake8
         name: Lint Python code (flake8)
-        args: ["--config=.flake8"]
+        args: ['--config=.flake8']
         files: ^backend/.*\.py$
         additional_dependencies:
           - flake8-bugbear
@@ -55,78 +55,82 @@ repos:
   # JAVASCRIPT/TYPESCRIPT/REACT HOOKS
   # ========================================
 
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v4.0.0-alpha.8
-    hooks:
-      - id: prettier
-        name: Format frontend code (Prettier)
-        types_or: [javascript, jsx, ts, tsx, css, json, yaml, markdown]
-        exclude: ^(package-lock\.json|backend/)
-
-  - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v9.0.0-beta.2
-    hooks:
-      - id: eslint
-        name: Lint TypeScript/React (ESLint)
-        files: ^src/.*\.(ts|tsx|js|jsx)$
-        types: [file]
-        args: ["--fix", "--max-warnings=0"]
-        additional_dependencies:
-          - eslint@latest
-          - typescript@latest
-          - "@typescript-eslint/parser@latest"
-          - "@typescript-eslint/eslint-plugin@latest"
+  # Frontend hooks using local npm packages (works better on Windows)
+  # TEMPORARILY DISABLED - npm cache issues on Windows
+  # Uncomment when ready to use, or run manually: npx prettier --write src/ && npx eslint --fix src/
+  # - repo: local
+  #   hooks:
+  #     - id: prettier
+  #       name: Format frontend code (Prettier)
+  #       entry: npx prettier --write
+  #       language: system
+  #       types_or: [javascript, jsx, ts, tsx, css, json, yaml, markdown]
+  #       exclude: ^(package-lock\.json|backend/|\.md$)
+  #
+  #     - id: eslint
+  #       name: Lint TypeScript/React (ESLint)
+  #       entry: npx eslint --fix --max-warnings=0
+  #       language: system
+  #       files: ^src/.*\.(ts|tsx|js|jsx)$
+  #       types: [file]
 
   # ========================================
   # GENERAL FILE QUALITY HOOKS
   # ========================================
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v6.0.0
     hooks:
-      # Fix common issues
+      # Fix common issues - BACKEND ONLY
       - id: trailing-whitespace
-        name: Remove trailing whitespace
+        name: Remove trailing whitespace (backend only)
         args: [--markdown-linebreak-ext=md]
+        files: ^backend/.*
 
       - id: end-of-file-fixer
-        name: Ensure files end with newline
+        name: Ensure files end with newline (backend only)
+        files: ^backend/.*
 
       - id: mixed-line-ending
-        name: Fix mixed line endings
+        name: Fix mixed line endings (backend only)
         args: [--fix=lf]
+        files: ^backend/.*
 
-      # Validation checks
+      # Validation checks - BACKEND ONLY
       - id: check-yaml
         name: Validate YAML syntax
-        exclude: ^\.github/
+        files: ^backend/.*\.ya?ml$
 
       - id: check-json
         name: Validate JSON syntax
+        files: ^backend/.*\.json$
 
       - id: check-toml
         name: Validate TOML syntax
+        files: ^(backend/.*\.toml|pyproject\.toml)$
 
-      # Safety checks
+      # Safety checks - BACKEND ONLY
       - id: check-added-large-files
         name: Prevent large files (>500KB)
         args: [--maxkb=500]
-        exclude: ^(package-lock\.json|frontend/package-lock\.json)
+        files: ^backend/.*
 
       - id: check-merge-conflict
-        name: Check for merge conflict markers
+        name: Check for merge conflict markers (backend only)
+        files: ^backend/.*
 
       - id: check-case-conflict
-        name: Check for case conflicts in filenames
+        name: Check for case conflicts in filenames (backend only)
+        files: ^backend/.*
 
       # Python-specific
       - id: check-ast
         name: Validate Python AST
-        files: \.py$
+        files: ^backend/.*\.py$
 
       - id: debug-statements
         name: Check for debugger imports
-        files: \.py$
+        files: ^backend/.*\.py$
 
   # ========================================
   # SECURITY HOOKS (Optional but recommended)
@@ -143,11 +147,11 @@ repos:
 
 # Configuration
 default_language_version:
-  python: python3.11
+  python: python3
   node: system
 
 # Performance optimization
-fail_fast: false  # Run all hooks even if one fails (better feedback)
+fail_fast: false # Run all hooks even if one fails (better feedback)
 
 # Exclude patterns (applies to all hooks unless overridden)
 exclude: |

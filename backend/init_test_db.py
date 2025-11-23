@@ -1,6 +1,7 @@
 """
 Initialize test database with sample data for E2E tests
 """
+
 import os
 import sys
 from pathlib import Path
@@ -13,10 +14,12 @@ backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
 
 from datetime import date, datetime
-from database import engine, Base, get_db
-from models import User, Project, Task, Risk, Issue
+
 from auth import hash_password
+from database import Base, engine, get_db
+from models import Issue, Project, Risk, Task, User
 from sqlalchemy import text
+
 
 def init_test_database():
     """Initialize test database with sample data"""
@@ -38,13 +41,17 @@ def init_test_database():
     try:
         # Create app_settings table
         print("[3/4] Creating app_settings table...")
-        db.execute(text("""
+        db.execute(
+            text(
+                """
             CREATE TABLE IF NOT EXISTS app_settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
                 updated_at DATETIME NOT NULL
             )
-        """))
+        """
+            )
+        )
         db.commit()
 
         # Add sample data
@@ -58,7 +65,7 @@ def init_test_database():
                 "email": "sarah@example.com",
                 "password": "password123",
                 "role": "admin",
-                "avatar": "/avatars/avatar1.jpg"
+                "avatar": "/avatars/avatar1.jpg",
             },
             {
                 "id": "u2",
@@ -66,7 +73,7 @@ def init_test_database():
                 "email": "marcus@example.com",
                 "password": "password123",
                 "role": "member",
-                "avatar": "/avatars/avatar2.jpg"
+                "avatar": "/avatars/avatar2.jpg",
             },
             {
                 "id": "u3",
@@ -74,8 +81,8 @@ def init_test_database():
                 "email": "elena@example.com",
                 "password": "password123",
                 "role": "member",
-                "avatar": "/avatars/avatar3.jpg"
-            }
+                "avatar": "/avatars/avatar3.jpg",
+            },
         ]
 
         for user_data in users_data:
@@ -85,7 +92,7 @@ def init_test_database():
                 password_hash=hash_password(password),
                 is_active=True,
                 availability=True,
-                created_at=datetime.utcnow()
+                created_at=datetime.utcnow(),
             )
             db.add(user)
 
@@ -97,7 +104,7 @@ def init_test_database():
                 "description": "Complete overhaul of company website with modern design",
                 "start_date": date(2025, 1, 1),
                 "end_date": date(2025, 6, 30),
-                "color": "#3b82f6"
+                "color": "#3b82f6",
             }
         ]
 
@@ -119,7 +126,7 @@ def init_test_database():
                 "due_date": date(2025, 2, 15),
                 "progress": 65,
                 "is_blocked": False,
-                "is_milestone": False
+                "is_milestone": False,
             },
             {
                 "id": "t2",
@@ -133,8 +140,8 @@ def init_test_database():
                 "due_date": date(2025, 2, 28),
                 "progress": 0,
                 "is_blocked": False,
-                "is_milestone": False
-            }
+                "is_milestone": False,
+            },
         ]
 
         for task_data in tasks_data:

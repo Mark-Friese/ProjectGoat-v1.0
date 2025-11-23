@@ -7,6 +7,7 @@ Adds tables and columns for:
 - Enhanced session management
 - User account security features
 """
+
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -28,7 +29,8 @@ def migrate():
     # 1. Create login_attempts table
     # ========================================
     print("\n1. Creating login_attempts table...")
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS login_attempts (
             id TEXT PRIMARY KEY,
             email TEXT NOT NULL,
@@ -38,24 +40,30 @@ def migrate():
             success BOOLEAN NOT NULL DEFAULT 0,
             failure_reason TEXT
         )
-    """)
+    """
+    )
 
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_login_attempts_email
         ON login_attempts(email)
-    """)
+    """
+    )
 
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_login_attempts_attempted_at
         ON login_attempts(attempted_at)
-    """)
+    """
+    )
     print("   [OK] login_attempts table created")
 
     # ========================================
     # 2. Create user_permissions table
     # ========================================
     print("\n2. Creating user_permissions table...")
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS user_permissions (
             id TEXT PRIMARY KEY,
             role TEXT NOT NULL,
@@ -63,24 +71,30 @@ def migrate():
             action TEXT NOT NULL,
             allowed BOOLEAN NOT NULL DEFAULT 1
         )
-    """)
+    """
+    )
 
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_user_permissions_role
         ON user_permissions(role)
-    """)
+    """
+    )
 
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_user_permissions_unique
         ON user_permissions(role, resource, action)
-    """)
+    """
+    )
     print("   [OK] user_permissions table created")
 
     # ========================================
     # 3. Create audit_log table
     # ========================================
     print("\n3. Creating audit_log table...")
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS audit_log (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
@@ -91,17 +105,22 @@ def migrate():
             timestamp DATETIME NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
-    """)
+    """
+    )
 
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_audit_log_user
         ON audit_log(user_id)
-    """)
+    """
+    )
 
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp
         ON audit_log(timestamp)
-    """)
+    """
+    )
     print("   [OK] audit_log table created")
 
     # ========================================
@@ -131,11 +150,14 @@ def migrate():
             print(f"   - Column already exists: {column_name}")
 
     # Set created_at for existing users if not set
-    cursor.execute("""
+    cursor.execute(
+        """
         UPDATE users
         SET created_at = ?
         WHERE created_at IS NULL
-    """, (datetime.now().isoformat(),))
+    """,
+        (datetime.now().isoformat(),),
+    )
 
     # ========================================
     # 5. Add new columns to sessions table
@@ -161,11 +183,13 @@ def migrate():
             print(f"   - Column already exists: {column_name}")
 
     # Set last_activity_at for existing sessions
-    cursor.execute("""
+    cursor.execute(
+        """
         UPDATE sessions
         SET last_activity_at = last_accessed
         WHERE last_activity_at IS NULL
-    """)
+    """
+    )
 
     conn.commit()
     conn.close()

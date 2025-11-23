@@ -2,13 +2,15 @@
 CSRF Protection Middleware and Utilities
 Protects against Cross-Site Request Forgery attacks
 """
+
 import secrets
 from typing import Optional
-from fastapi import Request, HTTPException
+
+from database import SessionLocal
+from fastapi import HTTPException, Request
+from sqlalchemy import text
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
-from sqlalchemy import text
-from database import SessionLocal
 
 
 def generate_csrf_token() -> str:
@@ -22,7 +24,7 @@ def store_csrf_token(session_id: str, token: str):
     try:
         db.execute(
             text("UPDATE sessions SET csrf_token = :token WHERE id = :session_id"),
-            {"token": token, "session_id": session_id}
+            {"token": token, "session_id": session_id},
         )
         db.commit()
     finally:
@@ -35,7 +37,7 @@ def get_csrf_token(session_id: str) -> Optional[str]:
     try:
         result = db.execute(
             text("SELECT csrf_token FROM sessions WHERE id = :session_id"),
-            {"session_id": session_id}
+            {"session_id": session_id},
         ).fetchone()
         return result[0] if result and result[0] else None
     finally:
@@ -56,7 +58,7 @@ def clear_csrf_token(session_id: str):
     try:
         db.execute(
             text("UPDATE sessions SET csrf_token = NULL WHERE id = :session_id"),
-            {"session_id": session_id}
+            {"session_id": session_id},
         )
         db.commit()
     finally:
@@ -82,10 +84,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         # Only check CSRF for state-changing methods
         if request.method in ["POST", "PUT", "DELETE", "PATCH"]:
             # Check if path is exempt
-            is_exempt = any(
-                request.url.path.startswith(path)
-                for path in self.EXEMPT_PATHS
-            )
+            is_exempt = any(request.url.path.startswith(path) for path in self.EXEMPT_PATHS)
 
             if not is_exempt:
                 # Get CSRF token from header
@@ -98,14 +97,14 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                     return Response(
                         content='{"detail": "CSRF token missing"}',
                         status_code=403,
-                        media_type="application/json"
+                        media_type="application/json",
                     )
 
                 if not session_id:
                     return Response(
                         content='{"detail": "Session ID missing"}',
                         status_code=403,
-                        media_type="application/json"
+                        media_type="application/json",
                     )
 
                 # Verify token
@@ -113,7 +112,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                     return Response(
                         content='{"detail": "Invalid CSRF token"}',
                         status_code=403,
-                        media_type="application/json"
+                        media_type="application/json",
                     )
 
         # Token is valid or not required, proceed

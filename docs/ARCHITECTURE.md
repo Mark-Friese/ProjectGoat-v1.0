@@ -1,7 +1,9 @@
 # ProjectGoat - System Architecture
 
 ## Overview
-ProjectGoat uses a **decoupled architecture** with a React frontend and Python FastAPI backend, connected via REST API.
+
+ProjectGoat uses a **decoupled architecture** with a React frontend and Python
+FastAPI backend, connected via REST API.
 
 ## Architecture Diagram
 
@@ -26,6 +28,7 @@ ProjectGoat uses a **decoupled architecture** with a React frontend and Python F
 ## Technology Stack
 
 ### Frontend
+
 - **Framework:** React 18.3.1
 - **Language:** TypeScript
 - **Build Tool:** Vite 6.3.5
@@ -36,6 +39,7 @@ ProjectGoat uses a **decoupled architecture** with a React frontend and Python F
 - **State Management:** React useState/useEffect (local state)
 
 ### Backend
+
 - **Framework:** FastAPI
 - **Language:** Python 3.9+
 - **ORM:** SQLAlchemy 2.0
@@ -44,6 +48,7 @@ ProjectGoat uses a **decoupled architecture** with a React frontend and Python F
 - **Database:** SQLite3
 
 ### Database
+
 - **Type:** SQLite (file-based, embedded)
 - **File:** `projectgoat.db`
 - **Benefits:**
@@ -56,6 +61,7 @@ ProjectGoat uses a **decoupled architecture** with a React frontend and Python F
 ## Component Architecture
 
 ### Frontend Layer
+
 ```
 src/
 ├── components/          # React components
@@ -81,6 +87,7 @@ src/
 ```
 
 ### Backend Layer
+
 ```
 backend/
 ├── main.py             # FastAPI application & routes
@@ -99,6 +106,7 @@ backend/
 ## Data Flow
 
 ### Reading Data (GET)
+
 ```
 1. User interacts with UI
 2. React component calls API service
@@ -109,6 +117,7 @@ backend/
 ```
 
 ### Writing Data (POST/PUT/DELETE)
+
 ```
 1. User submits form/action
 2. React validates and sends to API service
@@ -122,16 +131,20 @@ backend/
 ## API Design
 
 ### RESTful Principles
+
 - Resource-based URLs
 - HTTP methods: GET, POST, PUT, DELETE, PATCH
 - JSON request/response bodies
-- HTTP status codes: 200, 201, 400, 401 (Unauthorized), 403 (Forbidden), 404, 429 (Rate Limited), 500
+- HTTP status codes: 200, 201, 400, 401 (Unauthorized), 403 (Forbidden), 404,
+  429 (Rate Limited), 500
 
 ### Base URL
+
 - **Development:** `http://localhost:8000/api`
 - **Production:** `http://localhost:8000/api`
 
 ### Endpoints Structure
+
 ```
 /api/auth           - Authentication (login, logout, session, change-password)
 /api/users          - User management & profile
@@ -147,6 +160,7 @@ backend/
 See [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) for detailed table definitions.
 
 ### Key Design Decisions
+
 - **UUID strings for IDs** - Flexible, globally unique
 - **ISO date strings** - Easy serialization
 - **JSON arrays for tags** - Simple, no joins needed for tags
@@ -156,12 +170,14 @@ See [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) for detailed table definitions.
 ## Deployment Model
 
 ### Development (Current Setup)
+
 ```
 Terminal 1: npm run dev (frontend dev server)
 Terminal 2: python main.py (backend server)
 ```
 
 ### Production (Work Laptop)
+
 ```
 frontend/           # Built static files (npm run build)
 backend/            # Python server
@@ -177,7 +193,8 @@ run.py              # Startup script (starts backend, serves frontend)
 
 - **Password Security:**
   - bcrypt password hashing with automatic salt generation
-  - Strong password requirements (8+ characters, uppercase, lowercase, number, special char)
+  - Strong password requirements (8+ characters, uppercase, lowercase, number,
+    special char)
   - Password change functionality with current password verification
   - Password change timestamp tracking
 
@@ -193,7 +210,8 @@ run.py              # Startup script (starts backend, serves frontend)
 
 - **CSRF Protection:**
   - Database-backed CSRF tokens (token stored in sessions table)
-  - Automatic validation on all state-changing operations (POST/PUT/DELETE/PATCH)
+  - Automatic validation on all state-changing operations
+    (POST/PUT/DELETE/PATCH)
   - Token regeneration on password change
   - Exempt endpoints: /api/auth/login, GET requests, /api/health
   - Frontend automatically includes X-CSRF-Token header
@@ -227,18 +245,21 @@ run.py              # Startup script (starts backend, serves frontend)
 ## Performance Considerations
 
 ### Frontend
+
 - Code splitting (Vite)
 - Lazy loading components
 - Virtual scrolling for long lists
 - Optimistic UI updates
 
 ### Backend
+
 - Database connection pooling
 - Indexed queries
 - Pagination for large datasets
 - Efficient SQLAlchemy queries
 
 ### Database
+
 - SQLite performs well for single-user scenarios
 - Indexes on foreign keys and frequently filtered fields
 - PRAGMA optimizations for better performance
@@ -246,11 +267,13 @@ run.py              # Startup script (starts backend, serves frontend)
 ## Scalability
 
 ### Current (Single User)
+
 - SQLite is sufficient
 - FastAPI handles concurrent requests efficiently
 - No bottlenecks expected
 
 ### Future (Multi-User)
+
 - Consider PostgreSQL for concurrent writes
 - Add caching layer (Redis)
 - WebSocket for real-time updates
@@ -258,12 +281,14 @@ run.py              # Startup script (starts backend, serves frontend)
 ## Error Handling
 
 ### Frontend
+
 - Try-catch blocks around API calls
 - User-friendly error messages
 - Loading states
 - Retry mechanisms
 
 ### Backend
+
 - HTTP exception handlers
 - Input validation (Pydantic)
 - Database transaction rollbacks
@@ -272,10 +297,12 @@ run.py              # Startup script (starts backend, serves frontend)
 ## Testing Strategy
 
 ### Frontend
+
 - Component testing (React Testing Library)
 - E2E testing (Playwright/Cypress)
 
 ### Backend
+
 - Unit tests (pytest)
 - API tests (FastAPI TestClient)
 - Database tests (in-memory SQLite)
@@ -283,18 +310,21 @@ run.py              # Startup script (starts backend, serves frontend)
 ## Build & Deployment Process
 
 1. **Build Frontend:**
+
    ```bash
    npm run build
    # Output: build/ directory
    ```
 
 2. **Package Backend:**
+
    ```bash
    # Copy backend files
    # Include projectgoat.db (or init_db.py)
    ```
 
 3. **Create Deployment Package:**
+
    ```
    ProjectGoat-Deployment/
    ├── frontend/

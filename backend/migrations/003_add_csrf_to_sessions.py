@@ -1,6 +1,7 @@
 """
 Database Migration 003: Add CSRF token to sessions table
 """
+
 import sqlite3
 from pathlib import Path
 

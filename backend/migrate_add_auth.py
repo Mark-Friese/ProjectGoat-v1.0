@@ -2,9 +2,10 @@
 Database Migration: Add Authentication Support
 Adds app_settings, sessions tables and password_hash to users table
 """
+
+import hashlib
 import sqlite3
 from datetime import datetime
-import hashlib
 
 DATABASE_PATH = "../projectgoat.db"
 
@@ -23,17 +24,20 @@ def migrate():
     try:
         # 1. Create app_settings table
         print("Creating app_settings table...")
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS app_settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL,
                 updated_at DATETIME NOT NULL
             )
-        """)
+        """
+        )
 
         # 2. Create sessions table
         print("Creating sessions table...")
-        cursor.execute("""
+        cursor.execute(
+            """
             CREATE TABLE IF NOT EXISTS sessions (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -42,7 +46,8 @@ def migrate():
                 last_accessed DATETIME NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
-        """)
+        """
+        )
 
         # 3. Add password_hash column to users table
         print("Adding password_hash column to users table...")
@@ -63,10 +68,7 @@ def migrate():
         hashed = hash_password(default_password)
 
         for user_id, name in users_without_passwords:
-            cursor.execute(
-                "UPDATE users SET password_hash = ? WHERE id = ?",
-                (hashed, user_id)
-            )
+            cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed, user_id))
             print(f"  Set password for user: {name} (ID: {user_id})")
 
         # 5. Set default current user (first admin user)
@@ -76,7 +78,7 @@ def migrate():
         if admin_user:
             cursor.execute(
                 "INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, ?)",
-                ("current_user_id", admin_user[0], datetime.now().isoformat())
+                ("current_user_id", admin_user[0], datetime.now().isoformat()),
             )
             print(f"  Set current user to: {admin_user[0]}")
 

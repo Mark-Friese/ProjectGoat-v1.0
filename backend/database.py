@@ -5,8 +5,10 @@ Supports dual-mode deployment:
 - SQLite for local/laptop deployment (default)
 - PostgreSQL for online/production deployment
 """
+
 import os
 from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -41,7 +43,7 @@ if DATABASE_URL.startswith("sqlite"):
     engine = create_engine(
         DATABASE_URL,
         connect_args={"check_same_thread": False},  # Needed for SQLite
-        echo=False  # Set to True for SQL query logging
+        echo=False,  # Set to True for SQL query logging
     )
 else:
     # PostgreSQL configuration
@@ -50,7 +52,7 @@ else:
         pool_pre_ping=True,  # Verify connections before using
         pool_size=5,  # Number of connections to maintain
         max_overflow=10,  # Additional connections when pool is exhausted
-        echo=False  # Set to True for SQL query logging
+        echo=False,  # Set to True for SQL query logging
     )
 
 # Session factory
@@ -58,6 +60,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Base class for ORM models
 Base = declarative_base()
+
 
 # Dependency to get database session
 def get_db():

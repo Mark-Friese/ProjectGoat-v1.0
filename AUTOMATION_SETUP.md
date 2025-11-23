@@ -1,7 +1,7 @@
 # Code Quality Automation Setup Guide
 
-**ProjectGoat Pre-commit Hooks**
-Automated code quality checks for backend (Python) and frontend (TypeScript/React)
+**ProjectGoat Pre-commit Hooks** Automated code quality checks for backend
+(Python) and frontend (TypeScript/React)
 
 ---
 
@@ -28,16 +28,19 @@ git commit -m "Your message"
 Every time you commit, these checks run automatically:
 
 ### ✅ Backend (Python in `backend/`)
+
 - **Black** - Auto-formats Python code to consistent style
 - **isort** - Sorts Python imports alphabetically
 - **flake8** - Checks for style issues and potential bugs
 - **mypy** (optional) - Type checking
 
 ### ✅ Frontend (TypeScript/React in `src/`)
+
 - **Prettier** - Auto-formats TypeScript/React/CSS/JSON
 - **ESLint** - Checks for TypeScript and React best practices
 
 ### ✅ All Files
+
 - Remove trailing whitespace
 - Ensure files end with newline
 - Validate YAML syntax
@@ -67,6 +70,7 @@ pip install -r requirements-dev.txt
 ```
 
 This installs:
+
 - `pre-commit` - Hook framework
 - `black` - Python formatter
 - `isort` - Import sorter
@@ -89,12 +93,14 @@ pre-commit run --all-files
 ```
 
 This will:
+
 - Format all Python files with Black
 - Sort all Python imports
 - Format all TypeScript files with Prettier
 - Check for style issues
 
-**Note:** First run downloads hook dependencies (slow), subsequent runs are fast!
+**Note:** First run downloads hook dependencies (slow), subsequent runs are
+fast!
 
 ---
 
@@ -160,13 +166,13 @@ git commit -m "Add feature"
 
 All configuration is in the project root:
 
-| File | Purpose |
-|------|---------|
-| `.pre-commit-config.yaml` | Defines which hooks to run |
-| `pyproject.toml` | Python tool settings (Black, isort, pytest) |
-| `.flake8` | Python linter settings |
-| `.prettierrc` | Frontend formatter settings |
-| `.prettierignore` | Files to exclude from Prettier |
+| File                      | Purpose                                     |
+| ------------------------- | ------------------------------------------- |
+| `.pre-commit-config.yaml` | Defines which hooks to run                  |
+| `pyproject.toml`          | Python tool settings (Black, isort, pytest) |
+| `.flake8`                 | Python linter settings                      |
+| `.prettierrc`             | Frontend formatter settings                 |
+| `.prettierignore`         | Files to exclude from Prettier              |
 
 ---
 
@@ -209,7 +215,7 @@ repos:
   - repo: https://github.com/pycqa/bandit
     rev: 1.7.5
     hooks:
-      - id: bandit  # Security linter
+      - id: bandit # Security linter
 ```
 
 ---
@@ -350,6 +356,7 @@ This runs ALL pre-commit hooks on CI.
 ### VS Code
 
 Install extensions:
+
 - **Python** (Microsoft) - Supports Black, flake8
 - **ESLint** (Microsoft)
 - **Prettier** (Prettier)
@@ -381,6 +388,7 @@ Settings:
 ## What's Different from Normal Development?
 
 **Before:**
+
 ```bash
 # Write code however
 # Commit without checks
@@ -389,6 +397,7 @@ git commit -m "Add feature"
 ```
 
 **After:**
+
 ```bash
 # Write code however
 # Hooks auto-fix most issues
@@ -398,6 +407,7 @@ git commit -m "Add feature"
 ```
 
 **Benefits:**
+
 - ✅ Consistent code style automatically
 - ✅ Catch bugs before committing
 - ✅ Less time in code review arguing about style
@@ -436,25 +446,23 @@ Now hooks run on `git push` instead of commit.
 
 ## FAQ
 
-**Q: Why is the first run so slow?**
-A: Pre-commit downloads hook environments. Cached after first run.
+**Q: Why is the first run so slow?** A: Pre-commit downloads hook environments.
+Cached after first run.
 
-**Q: Can I use this without pre-commit framework?**
-A: Yes! Run tools manually: `black backend/`, `prettier --write src/`
+**Q: Can I use this without pre-commit framework?** A: Yes! Run tools manually:
+`black backend/`, `prettier --write src/`
 
-**Q: Do hooks run on unchanged files?**
-A: No, only on files you've staged for commit.
+**Q: Do hooks run on unchanged files?** A: No, only on files you've staged for
+commit.
 
-**Q: What if I disagree with Black's formatting?**
-A: Black is opinionated and non-configurable. This is intentional.
-   If team agrees, can switch to autopep8 (configurable).
+**Q: What if I disagree with Black's formatting?** A: Black is opinionated and
+non-configurable. This is intentional. If team agrees, can switch to autopep8
+(configurable).
 
-**Q: Will this slow down my commits?**
-A: Slightly (1-3 seconds for small changes). But catches issues immediately,
-   saving much more time debugging later.
+**Q: Will this slow down my commits?** A: Slightly (1-3 seconds for small
+changes). But catches issues immediately, saving much more time debugging later.
 
-**Q: Can I run this on Windows?**
-A: Yes! All tools are cross-platform.
+**Q: Can I run this on Windows?** A: Yes! All tools are cross-platform.
 
 ---
 
@@ -473,6 +481,7 @@ If you encounter issues:
 ## Summary
 
 Pre-commit hooks provide:
+
 - ⚡ **Fast feedback** - Catch issues in seconds, not hours
 - 🎨 **Automatic formatting** - Never think about code style again
 - 🐛 **Bug prevention** - Catch common mistakes before they reach main

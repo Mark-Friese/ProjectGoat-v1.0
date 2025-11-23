@@ -2,12 +2,14 @@
 Rate Limiting for Authentication
 Prevents brute force attacks on login
 """
+
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+
 import models
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 # Configuration
 MAX_LOGIN_ATTEMPTS = 5
@@ -16,9 +18,7 @@ ATTEMPT_WINDOW_MINUTES = 15
 
 
 def check_rate_limit(
-    db: Session,
-    email: str,
-    ip_address: Optional[str] = None
+    db: Session, email: str, ip_address: Optional[str] = None
 ) -> Tuple[bool, int, Optional[datetime]]:
     """
     Check if login attempts exceed rate limit
@@ -39,14 +39,16 @@ def check_rate_limit(
 
     # Check recent failed attempts within the time window
     result = db.execute(
-        text("""
+        text(
+            """
             SELECT COUNT(*) as count
             FROM login_attempts
             WHERE email = :email
               AND success = 0
               AND attempted_at > :window_start
-        """),
-        {"email": email, "window_start": window_start.isoformat()}
+        """
+        ),
+        {"email": email, "window_start": window_start.isoformat()},
     ).fetchone()
 
     failed_attempts = result[0] if result else 0
@@ -58,22 +60,22 @@ def check_rate_limit(
     if failed_attempts >= MAX_LOGIN_ATTEMPTS:
         # Get the timestamp of the last failed attempt
         last_attempt_result = db.execute(
-            text("""
+            text(
+                """
                 SELECT attempted_at
                 FROM login_attempts
                 WHERE email = :email
                   AND success = 0
                 ORDER BY attempted_at DESC
                 LIMIT 1
-            """),
-            {"email": email}
+            """
+            ),
+            {"email": email},
         ).fetchone()
 
         if last_attempt_result:
             last_attempt = datetime.fromisoformat(last_attempt_result[0])
-            locked_until = last_attempt + timedelta(
-                minutes=LOCKOUT_DURATION_MINUTES
-            )
+            locked_until = last_attempt + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
 
             # Check if still locked
             if now < locked_until:
@@ -89,7 +91,7 @@ def record_login_attempt(
     success: bool,
     ip_address: Optional[str] = None,
     user_agent: Optional[str] = None,
-    failure_reason: Optional[str] = None
+    failure_reason: Optional[str] = None,
 ):
     """
     Record a login attempt in the database
@@ -106,7 +108,8 @@ def record_login_attempt(
     now = datetime.now()
 
     db.execute(
-        text("""
+        text(
+            """
             INSERT INTO login_attempts (
                 id, email, ip_address, user_agent, attempted_at,
                 success, failure_reason
@@ -115,7 +118,8 @@ def record_login_attempt(
                 :id, :email, :ip_address, :user_agent, :attempted_at,
                 :success, :failure_reason
             )
-        """),
+        """
+        ),
         {
             "id": attempt_id,
             "email": email,
@@ -123,8 +127,8 @@ def record_login_attempt(
             "user_agent": user_agent,
             "attempted_at": now.isoformat(),
             "success": success,
-            "failure_reason": failure_reason
-        }
+            "failure_reason": failure_reason,
+        },
     )
     db.commit()
 
@@ -138,12 +142,14 @@ def clear_login_attempts(db: Session, email: str):
         email: Email address to clear attempts for
     """
     db.execute(
-        text("""
+        text(
+            """
             DELETE FROM login_attempts
             WHERE email = :email
               AND success = 0
-        """),
-        {"email": email}
+        """
+        ),
+        {"email": email},
     )
     db.commit()
 
@@ -159,10 +165,12 @@ def cleanup_old_attempts(db: Session, days: int = 30):
     cutoff_date = datetime.now() - timedelta(days=days)
 
     db.execute(
-        text("""
+        text(
+            """
             DELETE FROM login_attempts
             WHERE attempted_at < :cutoff_date
-        """),
-        {"cutoff_date": cutoff_date.isoformat()}
+        """
+        ),
+        {"cutoff_date": cutoff_date.isoformat()},
     )
     db.commit()

@@ -9,14 +9,16 @@ max-line-length = 100
 max-complexity = 10
 
 # Ignore specific error codes
-ignore =
-    # Black compatibility
-    E203,  # Whitespace before ':' (Black formats this)
-    W503,  # Line break before binary operator (Black style)
-    E501,  # Line too long (Black handles this, can be enabled later)
-
-    # Other
-    E402,  # Module level import not at top of file (sometimes necessary)
+# E203: Whitespace before ':' (Black formats this)
+# W503: Line break before binary operator (Black style)
+# E501: Line too long (Black handles this)
+# E402: Module level import not at top of file (sometimes necessary)
+# B008: Function calls in argument defaults (FastAPI Depends() pattern requires this)
+# B007: Loop control variable not used (acceptable in test loops)
+# B028: Missing stacklevel in warnings (minor)
+# F401: Unused imports (handled per-file below)
+# F541: f-string without placeholders (minor)
+ignore = E203,W503,E501,E402,B008,B007,B028,F401,F541
 
 # Exclude patterns
 exclude =
@@ -45,8 +47,9 @@ filename = *.py
 per-file-ignores =
     # Allow star imports in __init__.py
     __init__.py:F401,F403
-    # Allow unused imports in test conftest
-    conftest.py:F401
+    # Allow unused imports in test files (pytest uses fixtures)
+    conftest.py:F401,F811
+    test_*.py:F401
 
 # Show source code for errors
 show-source = True

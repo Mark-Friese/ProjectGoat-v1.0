@@ -1,6 +1,7 @@
 """
 Tests for API CRUD endpoints (tasks, projects, users, risks, issues).
 """
+
 import pytest
 from conftest import get_auth_headers
 
@@ -12,10 +13,7 @@ class TestTasksAPI:
         """Test GET /api/tasks."""
         client, session_id, csrf_token, user = authenticated_client
 
-        response = client.get(
-            "/api/tasks",
-            headers={"X-Session-ID": session_id}
-        )
+        response = client.get("/api/tasks", headers={"X-Session-ID": session_id})
 
         assert response.status_code == 200
         tasks = response.json()
@@ -27,10 +25,7 @@ class TestTasksAPI:
         client, session_id, csrf_token, user = authenticated_client
         task = sample_tasks[0]
 
-        response = client.get(
-            f"/api/tasks/{task.id}",
-            headers={"X-Session-ID": session_id}
-        )
+        response = client.get(f"/api/tasks/{task.id}", headers={"X-Session-ID": session_id})
 
         assert response.status_code == 200
         data = response.json()
@@ -53,9 +48,7 @@ class TestTasksAPI:
         }
 
         response = client.post(
-            "/api/tasks",
-            json=task_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            "/api/tasks", json=task_data, headers=get_auth_headers(session_id, csrf_token)
         )
 
         assert response.status_code == 201
@@ -73,7 +66,7 @@ class TestTasksAPI:
         response = client.put(
             f"/api/tasks/{task.id}",
             json=update_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            headers=get_auth_headers(session_id, csrf_token),
         )
 
         assert response.status_code == 200
@@ -87,17 +80,13 @@ class TestTasksAPI:
         task = sample_tasks[0]
 
         response = client.delete(
-            f"/api/tasks/{task.id}",
-            headers=get_auth_headers(session_id, csrf_token)
+            f"/api/tasks/{task.id}", headers=get_auth_headers(session_id, csrf_token)
         )
 
         assert response.status_code == 200
 
         # Verify task is deleted
-        response = client.get(
-            f"/api/tasks/{task.id}",
-            headers={"X-Session-ID": session_id}
-        )
+        response = client.get(f"/api/tasks/{task.id}", headers={"X-Session-ID": session_id})
         assert response.status_code == 404
 
     def test_update_task_status(self, authenticated_client, sample_tasks):
@@ -108,7 +97,7 @@ class TestTasksAPI:
         response = client.patch(
             f"/api/tasks/{task.id}/status",
             json={"status": "done"},
-            headers=get_auth_headers(session_id, csrf_token)
+            headers=get_auth_headers(session_id, csrf_token),
         )
 
         assert response.status_code == 200
@@ -123,10 +112,7 @@ class TestProjectsAPI:
         """Test GET /api/projects."""
         client, session_id, csrf_token, user = authenticated_client
 
-        response = client.get(
-            "/api/projects",
-            headers={"X-Session-ID": session_id}
-        )
+        response = client.get("/api/projects", headers={"X-Session-ID": session_id})
 
         assert response.status_code == 200
         projects = response.json()
@@ -138,10 +124,7 @@ class TestProjectsAPI:
         client, session_id, csrf_token, user = authenticated_client
         project = sample_projects[0]
 
-        response = client.get(
-            f"/api/projects/{project.id}",
-            headers={"X-Session-ID": session_id}
-        )
+        response = client.get(f"/api/projects/{project.id}", headers={"X-Session-ID": session_id})
 
         assert response.status_code == 200
         data = response.json()
@@ -161,9 +144,7 @@ class TestProjectsAPI:
         }
 
         response = client.post(
-            "/api/projects",
-            json=project_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            "/api/projects", json=project_data, headers=get_auth_headers(session_id, csrf_token)
         )
 
         assert response.status_code == 201
@@ -180,7 +161,7 @@ class TestProjectsAPI:
         response = client.put(
             f"/api/projects/{project.id}",
             json=update_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            headers=get_auth_headers(session_id, csrf_token),
         )
 
         assert response.status_code == 200
@@ -193,8 +174,7 @@ class TestProjectsAPI:
         project = sample_projects[0]
 
         response = client.delete(
-            f"/api/projects/{project.id}",
-            headers=get_auth_headers(session_id, csrf_token)
+            f"/api/projects/{project.id}", headers=get_auth_headers(session_id, csrf_token)
         )
 
         assert response.status_code == 200
@@ -207,10 +187,7 @@ class TestUsersAPI:
         """Test GET /api/users."""
         client, session_id, csrf_token, user = authenticated_client
 
-        response = client.get(
-            "/api/users",
-            headers={"X-Session-ID": session_id}
-        )
+        response = client.get("/api/users", headers={"X-Session-ID": session_id})
 
         assert response.status_code == 200
         users = response.json()
@@ -220,10 +197,7 @@ class TestUsersAPI:
         """Test GET /api/users/{id}."""
         client, session_id, csrf_token, user = authenticated_client
 
-        response = client.get(
-            f"/api/users/{user.id}",
-            headers={"X-Session-ID": session_id}
-        )
+        response = client.get(f"/api/users/{user.id}", headers={"X-Session-ID": session_id})
 
         assert response.status_code == 200
         data = response.json()
@@ -234,10 +208,7 @@ class TestUsersAPI:
         """Test GET /api/users/me."""
         client, session_id, csrf_token, user = authenticated_client
 
-        response = client.get(
-            "/api/users/me",
-            headers={"X-Session-ID": session_id}
-        )
+        response = client.get("/api/users/me", headers={"X-Session-ID": session_id})
 
         assert response.status_code == 200
         data = response.json()
@@ -248,15 +219,10 @@ class TestUsersAPI:
         """Test PUT /api/users/me."""
         client, session_id, csrf_token, user = authenticated_client
 
-        update_data = {
-            "name": "Updated Name",
-            "email": "updated@example.com"
-        }
+        update_data = {"name": "Updated Name", "email": "updated@example.com"}
 
         response = client.put(
-            "/api/users/me",
-            json=update_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            "/api/users/me", json=update_data, headers=get_auth_headers(session_id, csrf_token)
         )
 
         assert response.status_code == 200
@@ -274,7 +240,7 @@ class TestUsersAPI:
         response = client.put(
             f"/api/users/{target_user.id}",
             json=update_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            headers=get_auth_headers(session_id, csrf_token),
         )
 
         assert response.status_code == 200
@@ -289,10 +255,7 @@ class TestRisksAPI:
         """Test GET /api/risks."""
         client, session_id, csrf_token, user = authenticated_client
 
-        response = client.get(
-            "/api/risks",
-            headers={"X-Session-ID": session_id}
-        )
+        response = client.get("/api/risks", headers={"X-Session-ID": session_id})
 
         assert response.status_code == 200
         assert isinstance(response.json(), list)
@@ -311,9 +274,7 @@ class TestRisksAPI:
         }
 
         response = client.post(
-            "/api/risks",
-            json=risk_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            "/api/risks", json=risk_data, headers=get_auth_headers(session_id, csrf_token)
         )
 
         assert response.status_code == 201
@@ -334,9 +295,7 @@ class TestRisksAPI:
             "status": "open",
         }
         create_response = client.post(
-            "/api/risks",
-            json=risk_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            "/api/risks", json=risk_data, headers=get_auth_headers(session_id, csrf_token)
         )
         risk_id = create_response.json()["id"]
 
@@ -345,7 +304,7 @@ class TestRisksAPI:
         response = client.put(
             f"/api/risks/{risk_id}",
             json=update_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            headers=get_auth_headers(session_id, csrf_token),
         )
 
         assert response.status_code == 200
@@ -365,16 +324,13 @@ class TestRisksAPI:
             "status": "open",
         }
         create_response = client.post(
-            "/api/risks",
-            json=risk_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            "/api/risks", json=risk_data, headers=get_auth_headers(session_id, csrf_token)
         )
         risk_id = create_response.json()["id"]
 
         # Delete risk
         response = client.delete(
-            f"/api/risks/{risk_id}",
-            headers=get_auth_headers(session_id, csrf_token)
+            f"/api/risks/{risk_id}", headers=get_auth_headers(session_id, csrf_token)
         )
 
         assert response.status_code == 200
@@ -387,10 +343,7 @@ class TestIssuesAPI:
         """Test GET /api/issues."""
         client, session_id, csrf_token, user = authenticated_client
 
-        response = client.get(
-            "/api/issues",
-            headers={"X-Session-ID": session_id}
-        )
+        response = client.get("/api/issues", headers={"X-Session-ID": session_id})
 
         assert response.status_code == 200
         assert isinstance(response.json(), list)
@@ -408,9 +361,7 @@ class TestIssuesAPI:
         }
 
         response = client.post(
-            "/api/issues",
-            json=issue_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            "/api/issues", json=issue_data, headers=get_auth_headers(session_id, csrf_token)
         )
 
         assert response.status_code == 201
@@ -430,9 +381,7 @@ class TestIssuesAPI:
             "status": "open",
         }
         create_response = client.post(
-            "/api/issues",
-            json=issue_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            "/api/issues", json=issue_data, headers=get_auth_headers(session_id, csrf_token)
         )
         issue_id = create_response.json()["id"]
 
@@ -441,7 +390,7 @@ class TestIssuesAPI:
         response = client.put(
             f"/api/issues/{issue_id}",
             json=update_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            headers=get_auth_headers(session_id, csrf_token),
         )
 
         assert response.status_code == 200
@@ -460,16 +409,13 @@ class TestIssuesAPI:
             "status": "open",
         }
         create_response = client.post(
-            "/api/issues",
-            json=issue_data,
-            headers=get_auth_headers(session_id, csrf_token)
+            "/api/issues", json=issue_data, headers=get_auth_headers(session_id, csrf_token)
         )
         issue_id = create_response.json()["id"]
 
         # Delete issue
         response = client.delete(
-            f"/api/issues/{issue_id}",
-            headers=get_auth_headers(session_id, csrf_token)
+            f"/api/issues/{issue_id}", headers=get_auth_headers(session_id, csrf_token)
         )
 
         assert response.status_code == 200

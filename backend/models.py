@@ -2,11 +2,14 @@
 SQLAlchemy ORM Models
 Defines database tables and relationships
 """
-from sqlalchemy import Column, String, Integer, Boolean, Text, Date, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
-from database import Base
-from datetime import datetime
+
 import json
+from datetime import datetime
+
+from database import Base
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
+
 
 class User(Base):
     __tablename__ = "users"
@@ -29,7 +32,9 @@ class User(Base):
     account_locked_until = Column(DateTime, nullable=True)
 
     # Relationships
-    assigned_tasks = relationship("Task", back_populates="assignee", foreign_keys="Task.assignee_id")
+    assigned_tasks = relationship(
+        "Task", back_populates="assignee", foreign_keys="Task.assignee_id"
+    )
     comments = relationship("Comment", back_populates="user")
     owned_risks = relationship("Risk", back_populates="owner")
     assigned_issues = relationship("Issue", back_populates="assignee")
@@ -41,6 +46,7 @@ class UserSession(Base):
     User authentication sessions.
     Note: Named 'UserSession' to avoid conflict with sqlalchemy.orm.Session
     """
+
     __tablename__ = "sessions"
 
     id = Column(String(255), primary_key=True)
@@ -96,7 +102,9 @@ class Task(Base):
     assignee = relationship("User", back_populates="assigned_tasks", foreign_keys=[assignee_id])
     project = relationship("Project", back_populates="tasks")
     comments = relationship("Comment", back_populates="task", cascade="all, delete-orphan")
-    blocker = relationship("Blocker", back_populates="task", uselist=False, cascade="all, delete-orphan")
+    blocker = relationship(
+        "Blocker", back_populates="task", uselist=False, cascade="all, delete-orphan"
+    )
     parent = relationship("Task", remote_side=[id], backref="subtasks")
 
     @property
@@ -258,6 +266,7 @@ class UserPermission(Base):
 
     TODO: Implement permission checking middleware/decorators
     """
+
     __tablename__ = "user_permissions"
 
     id = Column(String(50), primary_key=True)
@@ -283,6 +292,7 @@ class AuditLog(Base):
     TODO: Implement audit logging middleware
     TODO: Add automatic population via decorators or middleware
     """
+
     __tablename__ = "audit_log"
 
     id = Column(String(50), primary_key=True)
@@ -296,6 +306,7 @@ class AuditLog(Base):
 
 class AppSettings(Base):
     """Application settings key-value store"""
+
     __tablename__ = "app_settings"
 
     key = Column(String(50), primary_key=True, index=True)

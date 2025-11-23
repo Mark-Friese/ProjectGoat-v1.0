@@ -1,6 +1,7 @@
 # ProjectGoat - API Endpoints Documentation
 
 ## Base URL
+
 `http://localhost:8000/api`
 
 ## Authentication
@@ -307,9 +308,11 @@ Set current user ID in application settings
 ### Users
 
 #### GET /api/users
+
 List all users
 
 **Response:**
+
 ```json
 [
   {
@@ -324,9 +327,11 @@ List all users
 ```
 
 #### GET /api/users/{id}
+
 Get specific user
 
 **Response:**
+
 ```json
 {
   "id": "u1",
@@ -339,9 +344,11 @@ Get specific user
 ```
 
 #### POST /api/users
+
 Create new user
 
 **Request Body:**
+
 ```json
 {
   "name": "John Doe",
@@ -355,9 +362,11 @@ Create new user
 **Response:** `201 Created` with created user
 
 #### PUT /api/users/{id}
+
 Update existing user
 
 **Request Body:**
+
 ```json
 {
   "name": "John Doe Updated",
@@ -374,9 +383,11 @@ Update existing user
 ### Projects
 
 #### GET /api/projects
+
 List all projects
 
 **Response:**
+
 ```json
 [
   {
@@ -391,14 +402,17 @@ List all projects
 ```
 
 #### GET /api/projects/{id}
+
 Get specific project
 
 **Response:** Single project object
 
 #### POST /api/projects
+
 Create new project
 
 **Request Body:**
+
 ```json
 {
   "name": "New Project",
@@ -412,6 +426,7 @@ Create new project
 **Response:** `201 Created` with created project
 
 #### PUT /api/projects/{id}
+
 Update existing project
 
 **Request Body:** Same as POST
@@ -419,6 +434,7 @@ Update existing project
 **Response:** `200 OK` with updated project
 
 #### DELETE /api/projects/{id}
+
 Delete project
 
 **Response:** `204 No Content`
@@ -428,9 +444,11 @@ Delete project
 ### Tasks
 
 #### GET /api/tasks
+
 List all tasks with optional filtering
 
 **Query Parameters:**
+
 - `project_id` (optional) - Filter by project
 - `assignee_id` (optional) - Filter by assignee
 - `status` (optional) - Filter by status
@@ -441,6 +459,7 @@ List all tasks with optional filtering
 **Example:** `/api/tasks?project_id=p1&status=in-progress`
 
 **Response:**
+
 ```json
 [
   {
@@ -467,14 +486,17 @@ List all tasks with optional filtering
 ```
 
 #### GET /api/tasks/{id}
+
 Get specific task with all details (including comments)
 
 **Response:** Single task object with comments array populated
 
 #### POST /api/tasks
+
 Create new task
 
 **Request Body:**
+
 ```json
 {
   "title": "New Task",
@@ -497,6 +519,7 @@ Create new task
 **Response:** `201 Created` with created task
 
 #### PUT /api/tasks/{id}
+
 Update existing task
 
 **Request Body:** Same as POST (partial updates supported)
@@ -504,9 +527,11 @@ Update existing task
 **Response:** `200 OK` with updated task
 
 #### PATCH /api/tasks/{id}/status
+
 Update only task status (optimized endpoint)
 
 **Request Body:**
+
 ```json
 {
   "status": "done"
@@ -516,6 +541,7 @@ Update only task status (optimized endpoint)
 **Response:** `200 OK` with updated task
 
 #### DELETE /api/tasks/{id}
+
 Delete task
 
 **Response:** `204 No Content`
@@ -525,9 +551,11 @@ Delete task
 ### Comments
 
 #### POST /api/tasks/{task_id}/comments
+
 Add comment to task
 
 **Request Body:**
+
 ```json
 {
   "userId": "u1",
@@ -536,6 +564,7 @@ Add comment to task
 ```
 
 **Response:** `201 Created` with created comment
+
 ```json
 {
   "id": "c1",
@@ -546,6 +575,7 @@ Add comment to task
 ```
 
 #### DELETE /api/comments/{id}
+
 Delete comment
 
 **Response:** `204 No Content`
@@ -555,9 +585,11 @@ Delete comment
 ### Blockers
 
 #### POST /api/tasks/{task_id}/blocker
+
 Add blocker to task
 
 **Request Body:**
+
 ```json
 {
   "description": "Waiting for API documentation"
@@ -567,9 +599,11 @@ Add blocker to task
 **Response:** `201 Created` with created blocker
 
 #### PUT /api/blockers/{id}/resolve
+
 Resolve blocker
 
 **Request Body:**
+
 ```json
 {
   "resolutionNotes": "API docs received and reviewed"
@@ -579,6 +613,7 @@ Resolve blocker
 **Response:** `200 OK` with updated blocker
 
 #### DELETE /api/blockers/{id}
+
 Remove blocker
 
 **Response:** `204 No Content`
@@ -588,9 +623,11 @@ Remove blocker
 ### Risks
 
 #### GET /api/risks
+
 List all risks
 
 **Response:**
+
 ```json
 [
   {
@@ -607,14 +644,17 @@ List all risks
 ```
 
 #### GET /api/risks/{id}
+
 Get specific risk
 
 **Response:** Single risk object
 
 #### POST /api/risks
+
 Create new risk
 
 **Request Body:**
+
 ```json
 {
   "title": "Resource shortage",
@@ -630,6 +670,7 @@ Create new risk
 **Response:** `201 Created` with created risk
 
 #### PUT /api/risks/{id}
+
 Update existing risk
 
 **Request Body:** Same as POST
@@ -637,6 +678,7 @@ Update existing risk
 **Response:** `200 OK` with updated risk
 
 #### DELETE /api/risks/{id}
+
 Delete risk
 
 **Response:** `204 No Content`
@@ -646,13 +688,16 @@ Delete risk
 ### Issues
 
 #### GET /api/issues
+
 List all issues
 
 **Query Parameters:**
+
 - `status` (optional) - Filter by status
 - `assignee_id` (optional) - Filter by assignee
 
 **Response:**
+
 ```json
 [
   {
@@ -670,14 +715,17 @@ List all issues
 ```
 
 #### GET /api/issues/{id}
+
 Get specific issue
 
 **Response:** Single issue object
 
 #### POST /api/issues
+
 Create new issue
 
 **Request Body:**
+
 ```json
 {
   "title": "Performance problem",
@@ -692,6 +740,7 @@ Create new issue
 **Response:** `201 Created` with created issue
 
 #### PUT /api/issues/{id}
+
 Update existing issue
 
 **Request Body:** Same as POST (partial updates supported)
@@ -699,11 +748,13 @@ Update existing issue
 **Response:** `200 OK` with updated issue
 
 #### PATCH /api/issues/{id}/resolve
+
 Resolve issue
 
 **Response:** `200 OK` with updated issue (resolvedAt timestamp set)
 
 #### DELETE /api/issues/{id}
+
 Delete issue
 
 **Response:** `204 No Content`
@@ -713,9 +764,11 @@ Delete issue
 ### Sprints
 
 #### GET /api/sprints
+
 List all sprints
 
 **Response:**
+
 ```json
 [
   {
@@ -731,9 +784,11 @@ List all sprints
 ```
 
 #### POST /api/sprints
+
 Create new sprint
 
 **Request Body:**
+
 ```json
 {
   "name": "Sprint 2",
@@ -752,6 +807,7 @@ Create new sprint
 ## Error Responses
 
 ### 400 Bad Request
+
 ```json
 {
   "detail": "Validation error: field 'email' is required"
@@ -759,6 +815,7 @@ Create new sprint
 ```
 
 ### 404 Not Found
+
 ```json
 {
   "detail": "Task with id 't999' not found"
@@ -766,6 +823,7 @@ Create new sprint
 ```
 
 ### 500 Internal Server Error
+
 ```json
 {
   "detail": "Internal server error"
@@ -775,6 +833,7 @@ Create new sprint
 ## CORS Configuration
 
 Development:
+
 ```python
 origins = [
     "http://localhost:3000",
@@ -785,23 +844,28 @@ origins = [
 ```
 
 Production:
+
 ```python
 origins = ["http://localhost:8000"]
 ```
 
 ## Rate Limiting
+
 None (local application, single user)
 
 ## Pagination
+
 - Default limit: 100 items
 - Max limit: 1000 items
 - Use `limit` and `offset` query parameters
 
 ## Date Formats
+
 - ISO 8601 format: `YYYY-MM-DD` for dates
 - ISO 8601 format: `YYYY-MM-DDTHH:mm:ssZ` for datetimes
 
 ## Field Naming
+
 - **Backend (Python):** snake_case
 - **Frontend (TypeScript):** camelCase
 - **API:** camelCase (Pydantic alias configuration)

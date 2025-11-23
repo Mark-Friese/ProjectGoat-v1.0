@@ -10,6 +10,7 @@ All settings use environment variables with sensible defaults for laptop deploym
 
 import os
 from typing import List
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if it exists
@@ -68,7 +69,9 @@ class Settings:
     @property
     def is_postgres(self) -> bool:
         """Check if using PostgreSQL database"""
-        return self.DATABASE_URL.startswith("postgresql") or self.DATABASE_URL.startswith("postgres")
+        return self.DATABASE_URL.startswith("postgresql") or self.DATABASE_URL.startswith(
+            "postgres"
+        )
 
     @property
     def is_development(self) -> bool:
@@ -88,16 +91,17 @@ class Settings:
                 raise ValueError(
                     "SESSION_SECRET must be changed in production! "
                     "Generate a secure secret with: "
-                    "python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+                    'python -c "import secrets; print(secrets.token_urlsafe(32))"'
                 )
 
             # Warn if using SQLite in production (not recommended for multi-user)
             if self.is_sqlite:
                 import warnings
+
                 warnings.warn(
                     "Using SQLite in production is not recommended for multi-user scenarios. "
                     "Consider using PostgreSQL by setting DATABASE_URL environment variable.",
-                    UserWarning
+                    UserWarning,
                 )
 
     def __repr__(self) -> str:

@@ -1,17 +1,21 @@
 # ProjectGoat - Deployment Guide
 
 ## Overview
-This guide covers deploying ProjectGoat to your work laptop with restricted environment.
+
+This guide covers deploying ProjectGoat to your work laptop with restricted
+environment.
 
 ## Prerequisites
 
 ### Work Laptop Requirements
+
 - **Python 3.9+** (required)
 - **Web browser** (any modern browser)
 - **200MB disk space** (for application and database)
 - **No Node.js required** on work laptop
 
 ### Development Machine Requirements (one-time)
+
 - Node.js (for building frontend)
 - Python 3.9+ (for testing backend)
 
@@ -31,6 +35,7 @@ npm run build
 ```
 
 This creates a `build/` directory with static files:
+
 ```
 build/
 ├── index.html
@@ -48,6 +53,7 @@ No build step needed - Python files run as-is.
 ### Step 3: Create Deployment Package
 
 Create folder structure:
+
 ```
 ProjectGoat-Deployment/
 ├── build/                  # Copy from build/ (906 KB production bundle)
@@ -71,12 +77,14 @@ ProjectGoat-Deployment/
 ```
 
 #### Copy Frontend Files
+
 ```bash
 # Copy built frontend (production bundle)
 xcopy build\* ProjectGoat-Deployment\build\ /E /I /Y
 ```
 
 #### Copy Backend Files
+
 ```bash
 # Copy backend files
 xcopy backend\* ProjectGoat-Deployment\backend\ /E /I /Y
@@ -87,6 +95,7 @@ copy requirements.txt ProjectGoat-Deployment\
 ### Step 4: Transfer to Work Laptop
 
 Options:
+
 1. **USB Drive** - Copy folder to USB, transfer to work laptop
 2. **Network Share** - Copy via internal network share
 3. **Email** - Zip and email (if size permits and allowed)
@@ -100,6 +109,7 @@ powershell Compress-Archive -Path ProjectGoat-Deployment -DestinationPath Projec
 ### Step 5: Setup on Work Laptop
 
 #### 5.1 Extract Files
+
 ```bash
 # If using zip
 powershell Expand-Archive -Path ProjectGoat.zip -DestinationPath C:\ProjectGoat
@@ -107,16 +117,19 @@ cd C:\ProjectGoat
 ```
 
 #### 5.2 Verify Python Installation
+
 ```bash
 python --version
 # Should show Python 3.9 or higher
 ```
 
 If Python not installed:
+
 - Request installation from IT
 - Or use portable Python (if allowed)
 
 #### 5.3 Install Python Dependencies
+
 ```bash
 # Install required packages
 pip install -r requirements.txt
@@ -129,6 +142,7 @@ pip install -r requirements.txt
 ```
 
 If `pip install` fails (firewall/proxy):
+
 ```bash
 # Option 1: Use internal PyPI mirror
 pip install -r requirements.txt --index-url http://internal-pypi
@@ -138,6 +152,7 @@ pip install --no-index --find-links=./wheels -r requirements.txt
 ```
 
 #### 5.4 Initialize Database
+
 ```bash
 # Create and populate database
 python backend/init_db.py
@@ -146,12 +161,14 @@ python backend/init_db.py
 This creates `projectgoat.db` with initial data.
 
 #### 5.5 Start Application
+
 ```bash
 # Start server
 python run.py
 ```
 
 Expected output:
+
 ```
 INFO:     Started server process
 INFO:     Waiting for application startup.
@@ -160,7 +177,9 @@ INFO:     Uvicorn running on http://localhost:8000
 ```
 
 #### 5.6 Access Application
+
 Open web browser and navigate to:
+
 ```
 http://localhost:8000
 ```
@@ -212,6 +231,7 @@ if __name__ == "__main__":
 ```
 
 **Key features:**
+
 - Serves both API (on `/api/*`) and frontend (on `/`) from single process
 - No Node.js required - uses FastAPI's static file serving
 - Automatically detects and serves from `build/` directory
@@ -233,7 +253,8 @@ python-multipart==0.0.20
 
 ## File: backend/main.py (Static File Serving Configuration)
 
-The backend is configured to serve the production build automatically. This section is already implemented at the end of `backend/main.py`:
+The backend is configured to serve the production build automatically. This
+section is already implemented at the end of `backend/main.py`:
 
 ```python
 # ==================== Serve Frontend (Production) ====================
@@ -271,6 +292,7 @@ if BUILD_PATH.exists():
 ```
 
 This configuration:
+
 - Serves static assets from `/assets` directory
 - Handles SPA routing by serving `index.html` for all non-API routes
 - Protects API routes from being caught by the catch-all
@@ -281,10 +303,13 @@ This configuration:
 ## Troubleshooting
 
 ### Problem: Python not found
+
 **Solution:** Install Python 3.9+ or request from IT
 
 ### Problem: pip install fails (no internet)
+
 **Solution:**
+
 1. Download wheel files on dev machine:
    ```bash
    pip download -r requirements.txt -d ./wheels
@@ -296,16 +321,21 @@ This configuration:
    ```
 
 ### Problem: Port 8000 already in use
+
 **Solution:** Change port in `run.py`:
+
 ```python
 PORT = 8001  # or any available port
 ```
 
 ### Problem: Database file permission error
+
 **Solution:** Ensure write permissions in application directory
 
 ### Problem: Frontend shows blank page
+
 **Solutions:**
+
 1. Check browser console (F12) for errors
 2. Verify frontend files copied correctly to `build/` directory
 3. Check backend logs for errors
@@ -313,9 +343,11 @@ PORT = 8001  # or any available port
 5. Verify `build/` directory is in same location as `backend/` and `run.py`
 
 ### Problem: API calls fail (CORS error)
+
 **Solution:** Update CORS origins in `main.py` to match your URL
 
 ### Problem: Application slow to start
+
 **Solution:** Normal - first start initializes database and loads data
 
 ---
@@ -323,15 +355,18 @@ PORT = 8001  # or any available port
 ## Daily Usage
 
 ### Starting the App
+
 ```bash
 cd C:\ProjectGoat
 python run.py
 ```
 
 ### Stopping the App
+
 Press `CTRL+C` in the terminal
 
 ### Accessing the App
+
 Open browser: `http://localhost:8000`
 
 ---
@@ -339,18 +374,21 @@ Open browser: `http://localhost:8000`
 ## Data Management
 
 ### Backup Database
+
 ```bash
 # Copy database file
 copy projectgoat.db projectgoat_backup_2025-11-18.db
 ```
 
 ### Restore Database
+
 ```bash
 # Replace with backup
 copy projectgoat_backup_2025-11-18.db projectgoat.db
 ```
 
 ### Reset Database
+
 ```bash
 # Delete and reinitialize
 del projectgoat.db
@@ -362,12 +400,14 @@ python backend/init_db.py
 ## Updates & Maintenance
 
 ### Updating the App
+
 1. Build new version on dev machine
 2. Copy updated files to work laptop
 3. Restart application
 4. Database persists automatically
 
 ### Updating Data
+
 - All changes saved automatically to database
 - No manual save required
 - Data persists across restarts
@@ -377,6 +417,7 @@ python backend/init_db.py
 ## Performance Tips
 
 ### For Better Performance
+
 1. Close browser tabs when not using
 2. Regularly backup database
 3. Keep application directory on local drive (not network)
@@ -404,8 +445,10 @@ python backend/init_db.py
 
 ### Security Best Practices
 
-1. **Change Default Password:** Immediately change the default password on first login
-2. **Strong Passwords:** Use passwords with 8+ characters, mixed case, numbers, and special characters
+1. **Change Default Password:** Immediately change the default password on first
+   login
+2. **Strong Passwords:** Use passwords with 8+ characters, mixed case, numbers,
+   and special characters
 3. **Regular Backups:** Back up `projectgoat.db` regularly to prevent data loss
 4. **Local Access Only:** Do not expose the application to external networks
 5. **Keep Updated:** Keep Python and dependencies updated for security patches
@@ -425,12 +468,14 @@ If multi-user or network deployment needed:
 ## Support & Documentation
 
 ### Help Resources
+
 - [REQUIREMENTS.md](./REQUIREMENTS.md) - Feature documentation
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Technical design
 - [DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) - Database structure
 - [API_ENDPOINTS.md](./API_ENDPOINTS.md) - API reference
 
 ### Common Tasks
+
 - View tasks: Navigate to Kanban or List view
 - Create task: Click "New Task" button
 - Update task: Click on any task card
@@ -441,13 +486,13 @@ If multi-user or network deployment needed:
 
 ## System Requirements Summary
 
-| Component | Requirement | Size |
-|-----------|-------------|------|
-| Python | 3.9+ | ~100MB |
-| Application | Static files + Python code | ~50MB |
-| Database | SQLite | ~5-50MB (grows with data) |
-| Memory | RAM during operation | ~100MB |
-| Disk Space | Total recommended | 200MB |
+| Component   | Requirement                | Size                      |
+| ----------- | -------------------------- | ------------------------- |
+| Python      | 3.9+                       | ~100MB                    |
+| Application | Static files + Python code | ~50MB                     |
+| Database    | SQLite                     | ~5-50MB (grows with data) |
+| Memory      | RAM during operation       | ~100MB                    |
+| Disk Space  | Total recommended          | 200MB                     |
 
 ---
 

@@ -1,6 +1,7 @@
 """
 Tests for CSRF protection middleware.
 """
+
 import pytest
 
 
@@ -22,7 +23,7 @@ class TestCSRFProtection:
                 "start_date": "2025-01-01",
                 "due_date": "2025-01-15",
             },
-            headers={"X-Session-ID": session_id}  # No CSRF token
+            headers={"X-Session-ID": session_id},  # No CSRF token
         )
 
         assert response.status_code == 403
@@ -37,7 +38,7 @@ class TestCSRFProtection:
         response = client.put(
             f"/api/tasks/{task.id}",
             json={"title": "Updated Task"},
-            headers={"X-Session-ID": session_id}  # No CSRF token
+            headers={"X-Session-ID": session_id},  # No CSRF token
         )
 
         assert response.status_code == 403
@@ -50,8 +51,7 @@ class TestCSRFProtection:
 
         # DELETE without CSRF token should fail
         response = client.delete(
-            f"/api/tasks/{task.id}",
-            headers={"X-Session-ID": session_id}  # No CSRF token
+            f"/api/tasks/{task.id}", headers={"X-Session-ID": session_id}  # No CSRF token
         )
 
         assert response.status_code == 403
@@ -62,10 +62,7 @@ class TestCSRFProtection:
         client, session_id, csrf_token, user = authenticated_client
 
         # GET without CSRF token should work
-        response = client.get(
-            "/api/tasks",
-            headers={"X-Session-ID": session_id}  # No CSRF token
-        )
+        response = client.get("/api/tasks", headers={"X-Session-ID": session_id})  # No CSRF token
 
         assert response.status_code == 200
 
@@ -84,10 +81,7 @@ class TestCSRFProtection:
                 "start_date": "2025-01-01",
                 "due_date": "2025-01-15",
             },
-            headers={
-                "X-Session-ID": session_id,
-                "X-CSRF-Token": "invalid_csrf_token"
-            }
+            headers={"X-Session-ID": session_id, "X-CSRF-Token": "invalid_csrf_token"},
         )
 
         assert response.status_code == 403
@@ -109,10 +103,7 @@ class TestCSRFProtection:
                 "start_date": "2025-01-01",
                 "due_date": "2025-01-15",
             },
-            headers={
-                "X-Session-ID": session_id,
-                "X-CSRF-Token": csrf_token
-            }
+            headers={"X-Session-ID": session_id, "X-CSRF-Token": csrf_token},
         )
 
         assert response.status_code == 201
@@ -123,8 +114,7 @@ class TestCSRFProtection:
 
         # Login should work without CSRF token
         response = client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": user.password}
+            "/api/auth/login", json={"email": user.email, "password": user.password}
         )
 
         assert response.status_code == 200
@@ -140,10 +130,7 @@ class TestCSRFProtection:
                 "current_password": user.password,
                 "new_password": "NewPassword123!@#",
             },
-            headers={
-                "X-Session-ID": session_id,
-                "X-CSRF-Token": old_csrf_token
-            }
+            headers={"X-Session-ID": session_id, "X-CSRF-Token": old_csrf_token},
         )
 
         assert response.status_code == 200
@@ -158,24 +145,19 @@ class TestCSRFProtection:
 
         # Create first session
         response1 = client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": user.password}
+            "/api/auth/login", json={"email": user.email, "password": user.password}
         )
         csrf_token1 = response1.json()["csrfToken"]
 
         # Logout
         client.post(
             "/api/auth/logout",
-            headers={
-                "X-Session-ID": response1.json()["sessionId"],
-                "X-CSRF-Token": csrf_token1
-            }
+            headers={"X-Session-ID": response1.json()["sessionId"], "X-CSRF-Token": csrf_token1},
         )
 
         # Create second session
         response2 = client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": user.password}
+            "/api/auth/login", json={"email": user.email, "password": user.password}
         )
         csrf_token2 = response2.json()["csrfToken"]
 

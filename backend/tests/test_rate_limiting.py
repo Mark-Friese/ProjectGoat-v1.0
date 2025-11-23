@@ -1,8 +1,10 @@
 """
 Tests for rate limiting and account lockout functionality.
 """
-import pytest
+
 from datetime import datetime, timedelta
+
+import pytest
 
 
 class TestRateLimiting:
@@ -15,15 +17,14 @@ class TestRateLimiting:
         # Make 5 failed login attempts
         for i in range(5):
             response = client.post(
-                "/api/auth/login",
-                json={"email": user.email, "password": "WrongPassword123!"}
+                "/api/auth/login", json={"email": user.email, "password": "WrongPassword123!"}
             )
             assert response.status_code == 401
 
         # 6th attempt should be rate limited
         response = client.post(
             "/api/auth/login",
-            json={"email": user.email, "password": user.password}  # Even with correct password
+            json={"email": user.email, "password": user.password},  # Even with correct password
         )
 
         assert response.status_code == 429  # Too Many Requests
@@ -38,21 +39,18 @@ class TestRateLimiting:
         # Make 5 failed attempts for user1
         for i in range(5):
             client.post(
-                "/api/auth/login",
-                json={"email": user1.email, "password": "WrongPassword123!"}
+                "/api/auth/login", json={"email": user1.email, "password": "WrongPassword123!"}
             )
 
         # user1 should be locked
         response = client.post(
-            "/api/auth/login",
-            json={"email": user1.email, "password": user1.password}
+            "/api/auth/login", json={"email": user1.email, "password": user1.password}
         )
         assert response.status_code == 429
 
         # user2 should still be able to login
         response = client.post(
-            "/api/auth/login",
-            json={"email": user2.email, "password": user2.password}
+            "/api/auth/login", json={"email": user2.email, "password": user2.password}
         )
         assert response.status_code == 200
 
@@ -65,14 +63,12 @@ class TestRateLimiting:
         # Make 5 failed attempts to lock account
         for i in range(5):
             client.post(
-                "/api/auth/login",
-                json={"email": user.email, "password": "WrongPassword123!"}
+                "/api/auth/login", json={"email": user.email, "password": "WrongPassword123!"}
             )
 
         # Verify account is locked
         response = client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": user.password}
+            "/api/auth/login", json={"email": user.email, "password": user.password}
         )
         assert response.status_code == 429
 
@@ -83,8 +79,7 @@ class TestRateLimiting:
 
         # Should be able to login now
         response = client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": user.password}
+            "/api/auth/login", json={"email": user.email, "password": user.password}
         )
         assert response.status_code == 200
 
@@ -97,8 +92,7 @@ class TestRateLimiting:
         # Make 3 failed attempts
         for i in range(3):
             client.post(
-                "/api/auth/login",
-                json={"email": user.email, "password": "WrongPassword123!"}
+                "/api/auth/login", json={"email": user.email, "password": "WrongPassword123!"}
             )
 
         # Verify failed attempts are recorded
@@ -107,8 +101,7 @@ class TestRateLimiting:
 
         # Successful login
         response = client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": user.password}
+            "/api/auth/login", json={"email": user.email, "password": user.password}
         )
         assert response.status_code == 200
 
@@ -123,10 +116,7 @@ class TestRateLimiting:
         user = sample_users[0]
 
         # Make a failed login attempt
-        client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": "WrongPassword123!"}
-        )
+        client.post("/api/auth/login", json={"email": user.email, "password": "WrongPassword123!"})
 
         # Check that attempt was logged
         attempt = db_session.query(LoginAttempt).filter_by(email=user.email).first()
@@ -135,16 +125,10 @@ class TestRateLimiting:
         assert "Invalid credentials" in attempt.failure_reason
 
         # Make a successful login attempt
-        client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": user.password}
-        )
+        client.post("/api/auth/login", json={"email": user.email, "password": user.password})
 
         # Check that successful attempt was logged
-        attempts = db_session.query(LoginAttempt).filter_by(
-            email=user.email,
-            success=True
-        ).all()
+        attempts = db_session.query(LoginAttempt).filter_by(email=user.email, success=True).all()
         assert len(attempts) == 1
 
     def test_rate_limit_window_15_minutes(self, client, sample_users, db_session):
@@ -159,7 +143,7 @@ class TestRateLimiting:
                 email=user.email,
                 attempted_at=datetime.utcnow() - timedelta(minutes=16),
                 success=False,
-                failure_reason="Invalid credentials"
+                failure_reason="Invalid credentials",
             )
             db_session.add(attempt)
         db_session.commit()
@@ -167,14 +151,12 @@ class TestRateLimiting:
         # Make 5 new failed attempts
         for i in range(5):
             response = client.post(
-                "/api/auth/login",
-                json={"email": user.email, "password": "WrongPassword123!"}
+                "/api/auth/login", json={"email": user.email, "password": "WrongPassword123!"}
             )
 
         # Should be rate limited (5 attempts in last 15 min)
         response = client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": user.password}
+            "/api/auth/login", json={"email": user.email, "password": user.password}
         )
         assert response.status_code == 429
 

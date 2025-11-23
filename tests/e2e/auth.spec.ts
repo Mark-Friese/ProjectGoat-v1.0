@@ -79,7 +79,9 @@ test.describe('Authentication', () => {
     await expect(page.locator('text=Dashboard')).toBeVisible({ timeout: 10000 });
 
     // Click logout button (look for LogOut icon or button)
-    await page.click('[aria-label="Logout"], button:has-text("Logout"), button:has-text("Log out")');
+    await page.click(
+      '[aria-label="Logout"], button:has-text("Logout"), button:has-text("Log out")'
+    );
 
     // Should redirect back to login page
     await expect(page.locator('input[type="email"]')).toBeVisible({ timeout: 5000 });

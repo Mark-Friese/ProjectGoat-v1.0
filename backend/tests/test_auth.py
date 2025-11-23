@@ -1,8 +1,10 @@
 """
 Tests for authentication endpoints and session management.
 """
-import pytest
+
 from datetime import datetime, timedelta
+
+import pytest
 
 
 class TestLogin:
@@ -12,8 +14,7 @@ class TestLogin:
         """Test successful login."""
         user = sample_users[0]
         response = client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": user.password}
+            "/api/auth/login", json={"email": user.email, "password": user.password}
         )
 
         assert response.status_code == 200
@@ -28,8 +29,7 @@ class TestLogin:
         """Test login with incorrect password."""
         user = sample_users[0]
         response = client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": "WrongPassword123!"}
+            "/api/auth/login", json={"email": user.email, "password": "WrongPassword123!"}
         )
 
         assert response.status_code == 401
@@ -38,8 +38,7 @@ class TestLogin:
     def test_login_nonexistent_user(self, client):
         """Test login with non-existent user."""
         response = client.post(
-            "/api/auth/login",
-            json={"email": "nonexistent@example.com", "password": "Test123!@#"}
+            "/api/auth/login", json={"email": "nonexistent@example.com", "password": "Test123!@#"}
         )
 
         assert response.status_code == 401
@@ -48,17 +47,11 @@ class TestLogin:
     def test_login_missing_fields(self, client):
         """Test login with missing fields."""
         # Missing password
-        response = client.post(
-            "/api/auth/login",
-            json={"email": "test@example.com"}
-        )
+        response = client.post("/api/auth/login", json={"email": "test@example.com"})
         assert response.status_code == 422  # Validation error
 
         # Missing email
-        response = client.post(
-            "/api/auth/login",
-            json={"password": "Test123!@#"}
-        )
+        response = client.post("/api/auth/login", json={"password": "Test123!@#"})
         assert response.status_code == 422  # Validation error
 
     def test_login_inactive_user(self, client, sample_users, db_session):
@@ -68,8 +61,7 @@ class TestLogin:
         db_session.commit()
 
         response = client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": user.password}
+            "/api/auth/login", json={"email": user.email, "password": user.password}
         )
 
         assert response.status_code == 403
@@ -87,17 +79,14 @@ class TestLogout:
         response = client.post(
             "/api/auth/logout",
             json={"session_id": session_id},
-            headers={"X-CSRF-Token": csrf_token}
+            headers={"X-CSRF-Token": csrf_token},
         )
 
         assert response.status_code == 200
         assert response.json()["message"] == "Logged out successfully"
 
         # Verify session is invalidated - check session should return unauthenticated
-        response = client.get(
-            "/api/auth/session",
-            params={"session_id": session_id}
-        )
+        response = client.get("/api/auth/session", params={"session_id": session_id})
 
         assert response.status_code == 200
         data = response.json()
@@ -106,10 +95,7 @@ class TestLogout:
 
     def test_logout_without_session(self, client):
         """Test logout without session (requires session_id parameter)."""
-        response = client.post(
-            "/api/auth/logout",
-            json={}
-        )
+        response = client.post("/api/auth/logout", json={})
 
         # Should return 422 validation error for missing session_id
         assert response.status_code == 422
@@ -122,10 +108,7 @@ class TestSessionValidation:
         """Test checking a valid session."""
         client, session_id, csrf_token, user = authenticated_client
 
-        response = client.get(
-            "/api/auth/session",
-            params={"session_id": session_id}
-        )
+        response = client.get("/api/auth/session", params={"session_id": session_id})
 
         assert response.status_code == 200
         data = response.json()
@@ -134,10 +117,7 @@ class TestSessionValidation:
 
     def test_check_session_invalid(self, client):
         """Test checking an invalid session."""
-        response = client.get(
-            "/api/auth/session",
-            params={"session_id": "invalid_session_id"}
-        )
+        response = client.get("/api/auth/session", params={"session_id": "invalid_session_id"})
 
         assert response.status_code == 200
         data = response.json()
@@ -165,13 +145,11 @@ class TestSessionValidation:
 
         # Wait a moment and make another request
         import time
+
         time.sleep(1)
 
         # Make a request to trigger activity update
-        client.get(
-            "/api/auth/session",
-            params={"session_id": session_id}
-        )
+        client.get("/api/auth/session", params={"session_id": session_id})
 
         # Check that last_accessed was updated
         db_session.refresh(session)
@@ -192,7 +170,7 @@ class TestPasswordChange:
                 "current_password": user.password,
                 "new_password": new_password,
             },
-            headers={"X-Session-ID": session_id, "X-CSRF-Token": csrf_token}
+            headers={"X-Session-ID": session_id, "X-CSRF-Token": csrf_token},
         )
 
         assert response.status_code == 200
@@ -202,17 +180,13 @@ class TestPasswordChange:
         assert "csrfToken" in data  # New CSRF token should be returned
 
         # Verify old session is invalidated
-        response = client.get(
-            "/api/auth/session",
-            params={"session_id": session_id}
-        )
+        response = client.get("/api/auth/session", params={"session_id": session_id})
         assert response.status_code == 200
         assert response.json()["authenticated"] is False
 
         # Verify new password works
         response = client.post(
-            "/api/auth/login",
-            json={"email": user.email, "password": new_password}
+            "/api/auth/login", json={"email": user.email, "password": new_password}
         )
         assert response.status_code == 200
 
@@ -226,7 +200,7 @@ class TestPasswordChange:
                 "current_password": "WrongPassword123!",
                 "new_password": "NewPassword123!@#",
             },
-            headers={"X-Session-ID": session_id, "X-CSRF-Token": csrf_token}
+            headers={"X-Session-ID": session_id, "X-CSRF-Token": csrf_token},
         )
 
         assert response.status_code == 400
@@ -243,7 +217,7 @@ class TestPasswordChange:
                 "current_password": user.password,
                 "new_password": "Weak1!",
             },
-            headers={"X-Session-ID": session_id, "X-CSRF-Token": csrf_token}
+            headers={"X-Session-ID": session_id, "X-CSRF-Token": csrf_token},
         )
         assert response.status_code == 400
         assert "at least 8 characters" in response.json()["detail"]
@@ -255,7 +229,7 @@ class TestPasswordChange:
             json={
                 "current_password": "Test123!@#",
                 "new_password": "NewPassword123!@#",
-            }
+            },
         )
 
         assert response.status_code == 401
@@ -276,10 +250,7 @@ class TestSessionTimeout:
         db_session.commit()
 
         # Session should be expired
-        response = client.get(
-            "/api/auth/session",
-            params={"session_id": session_id}
-        )
+        response = client.get("/api/auth/session", params={"session_id": session_id})
 
         assert response.status_code == 200
         data = response.json()
@@ -299,10 +270,7 @@ class TestSessionTimeout:
         db_session.commit()
 
         # Session should be expired due to absolute timeout
-        response = client.get(
-            "/api/auth/session",
-            params={"session_id": session_id}
-        )
+        response = client.get("/api/auth/session", params={"session_id": session_id})
 
         assert response.status_code == 200
         data = response.json()

@@ -1,10 +1,12 @@
 # Contributing to ProjectGoat
 
-Thank you for your interest in contributing to ProjectGoat! This document provides guidelines for contributing to the project.
+Thank you for your interest in contributing to ProjectGoat! This document
+provides guidelines for contributing to the project.
 
 ## Code of Conduct
 
-Please be respectful and constructive in all interactions. We aim to maintain a welcoming and inclusive community.
+Please be respectful and constructive in all interactions. We aim to maintain a
+welcoming and inclusive community.
 
 ## How to Contribute
 
@@ -30,6 +32,7 @@ Please be respectful and constructive in all interactions. We aim to maintain a 
 
 1. **Fork the repository**
 2. **Create a feature branch**
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -40,6 +43,7 @@ Please be respectful and constructive in all interactions. We aim to maintain a 
    - Update documentation as needed
 
 4. **Test your changes**
+
    ```bash
    # Backend tests
    python -m pytest
@@ -49,11 +53,13 @@ Please be respectful and constructive in all interactions. We aim to maintain a 
    ```
 
 5. **Commit with clear messages**
+
    ```bash
    git commit -m "feat: Add user profile customization"
    ```
 
 6. **Push to your fork**
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -66,6 +72,7 @@ Please be respectful and constructive in all interactions. We aim to maintain a 
 ## Development Setup
 
 ### Prerequisites
+
 - Python 3.9 or higher
 - Node.js 16 or higher
 - Git
@@ -73,12 +80,14 @@ Please be respectful and constructive in all interactions. We aim to maintain a 
 ### Local Setup
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/YourUsername/ProjectGoat.git
    cd ProjectGoat
    ```
 
 2. **Backend setup**
+
    ```bash
    python -m venv .venv
    source .venv/bin/activate  # Windows: .venv\Scripts\activate
@@ -86,11 +95,13 @@ Please be respectful and constructive in all interactions. We aim to maintain a 
    ```
 
 3. **Frontend setup**
+
    ```bash
    npm install
    ```
 
 4. **Run the application**
+
    ```bash
    # Terminal 1: Backend
    python run.py
@@ -107,19 +118,23 @@ Please be respectful and constructive in all interactions. We aim to maintain a 
 ## Code Style
 
 ### Python
+
 - Follow PEP 8 guidelines
 - Use type hints where applicable
 - Document functions with docstrings
 - Maximum line length: 100 characters
 
 ### TypeScript/React
+
 - Use TypeScript for type safety
 - Follow existing component patterns
 - Use functional components with hooks
 - Organize imports: React → libraries → local
 
 ### Commit Messages
+
 Use conventional commits format:
+
 - `feat:` New feature
 - `fix:` Bug fix
 - `docs:` Documentation changes
@@ -152,6 +167,7 @@ ProjectGoat/
 ## Testing
 
 ### Backend Tests
+
 ```bash
 # Run all tests
 python -m pytest
@@ -164,6 +180,7 @@ python -m pytest tests/test_auth.py
 ```
 
 ### Frontend Tests
+
 ```bash
 # Run unit tests
 npm test
@@ -182,12 +199,14 @@ npm run test:e2e
 ## Questions?
 
 If you have questions about contributing:
+
 1. Check existing documentation
 2. Search [Issues](../../issues) for similar questions
 3. Create a new issue with the "question" label
 
 ## License
 
-By contributing to ProjectGoat, you agree that your contributions will be licensed under the MIT License.
+By contributing to ProjectGoat, you agree that your contributions will be
+licensed under the MIT License.
 
 Thank you for contributing! 🐐
