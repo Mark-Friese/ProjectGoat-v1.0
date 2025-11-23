@@ -539,6 +539,19 @@ jobs:
           retention-days: 90
           compression-level: 0  # Already a zip file
 
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ProjectGoat-${{ steps.version.outputs.short_sha }}-portable.zip
+          body_path: deployment-package/CHANGELOG.txt
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          name: ProjectGoat ${{ github.ref_name }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Generate summary
         run: |
           echo "### ✅ Portable Deployment Package Created" >> $GITHUB_STEP_SUMMARY
@@ -559,6 +572,20 @@ jobs:
           echo "- ✅ Documentation (README-PORTABLE.txt)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Change log (CHANGELOG.txt)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Add release information if this is a tag build
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "#### 🎉 GitHub Release Created!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "A public release has been created at:" >> $GITHUB_STEP_SUMMARY
+            echo "**[Releases Page](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Public download available** (no login required)" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Permanent storage** (never expires)" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Direct link:** https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/ProjectGoat-${{ steps.version.outputs.short_sha }}-portable.zip" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
           echo "#### 📥 Download Instructions" >> $GITHUB_STEP_SUMMARY
           echo "1. Go to the **Actions** tab" >> $GITHUB_STEP_SUMMARY
           echo "2. Click on this workflow run" >> $GITHUB_STEP_SUMMARY
