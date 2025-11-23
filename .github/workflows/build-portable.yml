@@ -1,0 +1,574 @@
+name: Build Portable Deployment Package
+
+on:
+  workflow_dispatch:  # Manual trigger for safe testing
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags (e.g., v1.0.0)
+
+jobs:
+  build-portable:
+    name: Build Windows Portable Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 10  # Fetch recent commits for changelog
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Get version info
+        id: version
+        run: |
+          SHORT_SHA=$(git rev-parse --short=8 HEAD)
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "Version: $SHORT_SHA"
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Build frontend
+        run: |
+          echo "Building React frontend..."
+          npm run build
+          echo "Build complete. Checking output..."
+          ls -la build/
+          du -sh build/
+
+      - name: Create deployment directory structure
+        run: |
+          mkdir -p deployment-package/backend
+          mkdir -p deployment-package/build
+          echo "Deployment directory structure created"
+
+      - name: Copy backend files
+        run: |
+          echo "Copying backend Python files..."
+          cp -r backend/* deployment-package/backend/
+          echo "Backend files copied"
+          ls -la deployment-package/backend/
+
+      - name: Copy built frontend
+        run: |
+          echo "Copying built frontend..."
+          cp -r build/* deployment-package/build/
+          echo "Frontend files copied"
+          ls -la deployment-package/build/
+
+      - name: Copy requirements
+        run: |
+          cp requirements.txt deployment-package/
+          echo "requirements.txt copied"
+
+      - name: Create .env.template
+        run: |
+          cat > deployment-package/.env.template << 'EOF'
+          # ProjectGoat Configuration
+          # This file will be automatically copied to .env on first run
+
+          # Environment (production for deployed instances)
+          ENVIRONMENT=production
+
+          # Server configuration
+          HOST=127.0.0.1
+          PORT=8000
+
+          # Database (SQLite file-based database)
+          DATABASE_URL=sqlite:///projectgoat.db
+
+          # Session secret (auto-generated on first run if not set)
+          # To manually generate: python -c "import secrets; print(secrets.token_urlsafe(32))"
+          SESSION_SECRET=
+
+          # Logging (optional)
+          # LOG_LEVEL=INFO
+
+          # Development settings (leave commented for production)
+          # RELOAD=false
+          EOF
+          echo ".env.template created"
+
+      - name: Create run.bat startup script
+        run: |
+          cat > deployment-package/run.bat << 'EOF'
+          @echo off
+          setlocal enabledelayedexpansion
+
+          :: ============================================================================
+          :: ProjectGoat - Portable Deployment Startup Script
+          :: ============================================================================
+
+          echo.
+          echo ========================================
+          echo   ProjectGoat - Task Management System
+          echo ========================================
+          echo.
+
+          :: Check if Python is installed
+          echo [1/7] Checking Python installation...
+          python --version >nul 2>&1
+          if errorlevel 1 (
+              echo.
+              echo ERROR: Python is not installed or not in PATH
+              echo.
+              echo Please install Python 3.9 or higher from:
+              echo https://www.python.org/downloads/
+              echo.
+              echo Make sure to check "Add Python to PATH" during installation
+              echo.
+              pause
+              exit /b 1
+          )
+
+          :: Check Python version (must be 3.9+)
+          for /f "tokens=2" %%i in ('python --version 2^>^&1') do set PYTHON_VERSION=%%i
+          echo Found Python %PYTHON_VERSION%
+
+          :: Extract major and minor version
+          for /f "tokens=1,2 delims=." %%a in ("%PYTHON_VERSION%") do (
+              set PYTHON_MAJOR=%%a
+              set PYTHON_MINOR=%%b
+          )
+
+          :: Check if version is 3.9 or higher
+          if !PYTHON_MAJOR! LSS 3 (
+              echo ERROR: Python 3.9+ required, found %PYTHON_VERSION%
+              pause
+              exit /b 1
+          )
+          if !PYTHON_MAJOR! EQU 3 if !PYTHON_MINOR! LSS 9 (
+              echo ERROR: Python 3.9+ required, found %PYTHON_VERSION%
+              pause
+              exit /b 1
+          )
+
+          echo OK: Python version is compatible
+          echo.
+
+          :: Check/create virtual environment
+          if not exist .venv\ (
+              echo [2/7] Creating virtual environment...
+              python -m venv .venv
+              if errorlevel 1 (
+                  echo ERROR: Failed to create virtual environment
+                  pause
+                  exit /b 1
+              )
+              echo Virtual environment created successfully
+          ) else (
+              echo [2/7] Virtual environment already exists
+          )
+          echo.
+
+          :: Activate virtual environment
+          echo [3/7] Activating virtual environment...
+          call .venv\Scripts\activate.bat
+          if errorlevel 1 (
+              echo ERROR: Failed to activate virtual environment
+              pause
+              exit /b 1
+          )
+          echo Virtual environment activated
+          echo.
+
+          :: Check/create .env file
+          if not exist .env (
+              echo [4/7] Creating .env configuration file...
+              if exist .env.template (
+                  copy .env.template .env >nul
+                  echo Configuration file created from template
+              ) else (
+                  echo ERROR: .env.template not found
+                  pause
+                  exit /b 1
+              )
+          ) else (
+              echo [4/7] Configuration file already exists
+          )
+
+          :: Generate SESSION_SECRET if not set
+          findstr /C:"SESSION_SECRET=" .env | findstr /V /C:"SESSION_SECRET=." >nul
+          if errorlevel 1 (
+              echo Generating secure session secret...
+              for /f "delims=" %%i in ('python -c "import secrets; print(secrets.token_urlsafe(32))"') do set NEW_SECRET=%%i
+              powershell -Command "(Get-Content .env) -replace 'SESSION_SECRET=.*', 'SESSION_SECRET=!NEW_SECRET!' | Set-Content .env"
+              echo Session secret generated
+          )
+          echo.
+
+          :: Install/update dependencies
+          echo [5/7] Installing Python dependencies...
+          pip install -q --upgrade pip
+          pip install -q -r requirements.txt
+          if errorlevel 1 (
+              echo ERROR: Failed to install dependencies
+              pause
+              exit /b 1
+          )
+          echo Dependencies installed successfully
+          echo.
+
+          :: Initialize database if it doesn't exist
+          if not exist projectgoat.db (
+              echo [6/7] Initializing database...
+              python backend\init_db.py
+              if errorlevel 1 (
+                  echo ERROR: Failed to initialize database
+                  pause
+                  exit /b 1
+              )
+              echo Database initialized with default data
+              echo.
+              echo IMPORTANT: Default credentials
+              echo   Email: sarah@example.com
+              echo   Password: password123
+              echo.
+              echo Please change the password after first login!
+          ) else (
+              echo [6/7] Database already exists
+          )
+          echo.
+
+          :: Start the application
+          echo [7/7] Starting ProjectGoat...
+          echo.
+          echo ========================================
+          echo   Application is starting...
+          echo ========================================
+          echo.
+          echo Open your browser to: http://localhost:8000
+          echo.
+          echo Press Ctrl+C to stop the server
+          echo.
+
+          python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+
+          :: Cleanup on exit
+          echo.
+          echo ProjectGoat stopped
+          pause
+          EOF
+          echo "run.bat created"
+
+      - name: Create init_db.bat helper script
+        run: |
+          cat > deployment-package/init_db.bat << 'EOF'
+          @echo off
+          echo ========================================
+          echo   ProjectGoat - Database Initialization
+          echo ========================================
+          echo.
+          echo WARNING: This will reset the database and delete all data!
+          echo.
+          set /p CONFIRM="Are you sure? Type YES to continue: "
+          if not "%CONFIRM%"=="YES" (
+              echo Operation cancelled
+              pause
+              exit /b 0
+          )
+
+          echo.
+          echo Activating virtual environment...
+          call .venv\Scripts\activate.bat
+
+          echo Deleting existing database...
+          if exist projectgoat.db del projectgoat.db
+
+          echo Initializing new database...
+          python backend\init_db.py
+
+          if errorlevel 1 (
+              echo.
+              echo ERROR: Database initialization failed
+              pause
+              exit /b 1
+          )
+
+          echo.
+          echo ========================================
+          echo   Database initialized successfully!
+          echo ========================================
+          echo.
+          echo Default credentials:
+          echo   Email: sarah@example.com
+          echo   Password: password123
+          echo.
+          pause
+          EOF
+          echo "init_db.bat created"
+
+      - name: Generate CHANGELOG
+        run: |
+          cat > deployment-package/CHANGELOG.txt << 'EOF'
+          ProjectGoat - Change Log
+          ========================
+
+          Recent Changes:
+          EOF
+
+          echo "" >> deployment-package/CHANGELOG.txt
+          git log --pretty=format:"  %h - %s (%ar)" -10 >> deployment-package/CHANGELOG.txt || echo "  No git history available" >> deployment-package/CHANGELOG.txt
+
+          echo "" >> deployment-package/CHANGELOG.txt
+          echo "" >> deployment-package/CHANGELOG.txt
+          echo "Full history available at: https://github.com/${{ github.repository }}/commits" >> deployment-package/CHANGELOG.txt
+
+          echo "CHANGELOG.txt created"
+          cat deployment-package/CHANGELOG.txt
+
+      - name: Create README-PORTABLE.txt
+        run: |
+          cat > deployment-package/README-PORTABLE.txt << 'EOF'
+          ================================================================================
+                              PROJECTGOAT - PORTABLE DEPLOYMENT
+                                  Task Management System
+          ================================================================================
+
+          SYSTEM REQUIREMENTS
+          -------------------
+          - Windows 10/11 (or Windows Server 2016+)
+          - Python 3.9 or higher (3.13 recommended)
+          - 200 MB disk space
+          - Modern web browser (Chrome, Firefox, Edge)
+          - No internet connection required
+
+          WHAT'S INCLUDED
+          ---------------
+          - FastAPI backend server (Python)
+          - React frontend (pre-built static files)
+          - SQLite database (created on first run)
+          - All dependencies listed in requirements.txt
+
+          FIRST-TIME SETUP
+          ----------------
+          1. Extract this ZIP file to a folder of your choice
+             Example: C:\ProjectGoat\
+
+          2. Ensure Python 3.9+ is installed on your system
+             - Download from: https://www.python.org/downloads/
+             - During installation, CHECK "Add Python to PATH"
+
+          3. Double-click run.bat to start the application
+             - First run will take 2-3 minutes (installing dependencies)
+             - Subsequent runs will start in seconds
+
+          4. The script will automatically:
+             - Create a virtual environment (.venv folder)
+             - Install all Python dependencies
+             - Initialize the database
+             - Generate a secure session secret
+             - Start the server
+
+          5. Open your web browser to:
+             http://localhost:8000
+
+          6. Log in with the default credentials:
+             Email: sarah@example.com
+             Password: password123
+
+          7. IMPORTANT: Change the password immediately after first login!
+
+          DAILY USAGE
+          -----------
+          Starting the application:
+            - Double-click run.bat
+            - Wait for "Application is starting..." message
+            - Open browser to http://localhost:8000
+
+          Stopping the application:
+            - Press Ctrl+C in the command window
+            - Or simply close the window
+
+          FEATURES
+          --------
+          - Create and manage tasks
+          - Assign priorities and due dates
+          - Track task status (To Do, In Progress, Done)
+          - Tag tasks for organization
+          - Dashboard with statistics
+          - Secure user authentication
+          - All data stored locally
+
+          FILE LOCATIONS
+          --------------
+          - Database: projectgoat.db (in the same folder)
+          - Configuration: .env (auto-created from .env.template)
+          - Virtual environment: .venv\ (auto-created)
+          - Logs: Console output only (no log files by default)
+
+          BACKUP YOUR DATA
+          ----------------
+          To backup your tasks and data:
+            1. Stop the application (Ctrl+C)
+            2. Copy the file: projectgoat.db
+            3. Save it to a safe location (USB drive, network share, etc.)
+            4. Include the date in the filename: projectgoat-backup-2025-11-23.db
+
+          To restore from backup:
+            1. Stop the application
+            2. Replace projectgoat.db with your backup file
+            3. Rename the backup to: projectgoat.db
+            4. Start the application again
+
+          RESET DATABASE
+          --------------
+          To reset the database and start fresh:
+            1. Stop the application
+            2. Double-click init_db.bat
+            3. Confirm by typing YES
+            4. Database will be recreated with default data
+
+          WARNING: This deletes all your tasks and data!
+
+          TROUBLESHOOTING
+          ---------------
+          Problem: "Python is not installed or not in PATH"
+          Solution:
+            - Install Python from https://www.python.org/downloads/
+            - Make sure to check "Add Python to PATH" during installation
+            - Restart your computer after installation
+
+          Problem: "Failed to create virtual environment"
+          Solution:
+            - Your Python installation may be incomplete
+            - Reinstall Python and ensure all components are selected
+
+          Problem: "Port 8000 is already in use"
+          Solution:
+            - Another application is using port 8000
+            - Stop that application, or edit .env to change PORT=8000 to another port
+
+          Problem: "Failed to install dependencies"
+          Solution:
+            - Check internet connection (required for first-time setup)
+            - Or manually install: .venv\Scripts\pip.exe install -r requirements.txt
+
+          Problem: Can't access http://localhost:8000
+          Solution:
+            - Make sure the run.bat window shows "Application is starting..."
+            - Check that no error messages appeared in the window
+            - Try http://127.0.0.1:8000 instead
+            - Check if firewall is blocking the connection
+
+          Problem: "Database is locked"
+          Solution:
+            - Another instance of the application is running
+            - Close all run.bat windows and try again
+            - Restart your computer if the problem persists
+
+          SECURITY NOTES
+          --------------
+          - The application runs on localhost (127.0.0.1) only
+          - It is NOT accessible from other computers on your network
+          - This is intentional for security in restricted environments
+          - A unique session secret is auto-generated on first run
+          - Passwords are securely hashed with bcrypt
+          - Sessions expire after 30 minutes of inactivity
+
+          UPDATING
+          --------
+          To update to a newer version:
+            1. Backup your database (see BACKUP YOUR DATA above)
+            2. Extract the new version to a NEW folder
+            3. Copy your projectgoat.db from the old folder to the new folder
+            4. Run the new version with run.bat
+
+          UNINSTALLING
+          ------------
+          To remove ProjectGoat:
+            1. Backup your database if you want to keep the data
+            2. Stop the application
+            3. Delete the entire folder
+
+          There are no registry entries or system-wide changes to clean up.
+
+          TECHNICAL DETAILS
+          -----------------
+          - Backend: FastAPI (Python)
+          - Frontend: React + TypeScript + Vite
+          - Database: SQLite3 (file-based)
+          - Server: Uvicorn ASGI server
+          - Runs entirely on localhost (127.0.0.1:8000)
+
+          SUPPORT & DOCUMENTATION
+          -----------------------
+          - GitHub: https://github.com/${{ github.repository }}
+          - Issues: https://github.com/${{ github.repository }}/issues
+          - Full documentation: See repository README
+
+          COMPLIANCE NOTES
+          ----------------
+          This portable deployment is designed for restricted corporate environments:
+          - No internet connectivity required after initial setup
+          - No cloud services or external dependencies
+          - All data stored locally on your machine
+          - No admin/elevated privileges required
+          - No system-wide installation needed
+          - Runs from a single folder that can be moved/copied
+
+          ================================================================================
+                                      ENJOY PROJECTGOAT!
+          ================================================================================
+          EOF
+          echo "README-PORTABLE.txt created"
+
+      - name: Create deployment package
+        run: |
+          cd deployment-package
+          zip -r ../ProjectGoat-${{ steps.version.outputs.short_sha }}-portable.zip .
+          cd ..
+          ls -lh ProjectGoat-${{ steps.version.outputs.short_sha }}-portable.zip
+          echo "Deployment package created successfully"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProjectGoat-${{ steps.version.outputs.short_sha }}-portable
+          path: ProjectGoat-${{ steps.version.outputs.short_sha }}-portable.zip
+          retention-days: 90
+          compression-level: 0  # Already a zip file
+
+      - name: Generate summary
+        run: |
+          echo "### ✅ Portable Deployment Package Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${{ steps.version.outputs.short_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Package:** \`ProjectGoat-${{ steps.version.outputs.short_sha }}-portable.zip\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** $(ls -lh ProjectGoat-${{ steps.version.outputs.short_sha }}-portable.zip | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 📦 Package Contents" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Backend (FastAPI Python code)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Frontend (Pre-built React app)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Dependencies (requirements.txt)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Startup script (run.bat)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Database reset script (init_db.bat)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Configuration template (.env.template)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Documentation (README-PORTABLE.txt)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Change log (CHANGELOG.txt)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 📥 Download Instructions" >> $GITHUB_STEP_SUMMARY
+          echo "1. Go to the **Actions** tab" >> $GITHUB_STEP_SUMMARY
+          echo "2. Click on this workflow run" >> $GITHUB_STEP_SUMMARY
+          echo "3. Scroll to **Artifacts** section" >> $GITHUB_STEP_SUMMARY
+          echo "4. Download \`ProjectGoat-${{ steps.version.outputs.short_sha }}-portable\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### 🚀 Deployment Instructions" >> $GITHUB_STEP_SUMMARY
+          echo "1. Extract ZIP to target laptop" >> $GITHUB_STEP_SUMMARY
+          echo "2. Ensure Python 3.9+ is installed" >> $GITHUB_STEP_SUMMARY
+          echo "3. Double-click \`run.bat\`" >> $GITHUB_STEP_SUMMARY
+          echo "4. Open browser to http://localhost:8000" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See \`README-PORTABLE.txt\` in the package for complete instructions." >> $GITHUB_STEP_SUMMARY
