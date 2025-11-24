@@ -248,7 +248,7 @@ def get_current_user_profile(http_request: Request, db: Session = Depends(get_db
             {
                 "ipAddress": row[0],
                 "userAgent": row[1],
-                "attemptedAt": row[2],
+                "attemptedAt": row[2] if isinstance(row[2], str) else row[2].isoformat(),
                 "success": bool(row[3]),
             }
             for row in login_history
