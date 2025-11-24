@@ -44,7 +44,7 @@ def check_rate_limit(
             SELECT COUNT(*) as count
             FROM login_attempts
             WHERE email = :email
-              AND success = 0
+              AND success = FALSE
               AND attempted_at > :window_start
         """
         ),
@@ -65,7 +65,7 @@ def check_rate_limit(
                 SELECT attempted_at
                 FROM login_attempts
                 WHERE email = :email
-                  AND success = 0
+                  AND success = FALSE
                 ORDER BY attempted_at DESC
                 LIMIT 1
             """
@@ -144,7 +144,7 @@ def clear_login_attempts(db: Session, email: str):
             """
             DELETE FROM login_attempts
             WHERE email = :email
-              AND success = 0
+              AND success = FALSE
         """
         ),
         {"email": email},
