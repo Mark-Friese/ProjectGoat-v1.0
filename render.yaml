@@ -17,6 +17,10 @@ services:
         fromDatabase:
           name: projectgoat-db
           property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: PRODUCTION_ORIGIN
+        sync: false
 
 databases:
   - name: projectgoat-db

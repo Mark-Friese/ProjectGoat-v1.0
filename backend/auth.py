@@ -108,15 +108,27 @@ def get_current_user_setting(db: DBSession) -> Optional[str]:
 
 def set_current_user_setting(db: DBSession, user_id: str):
     """Set the current user ID in app settings"""
+    from config import settings
     from sqlalchemy import text
 
-    db.execute(
-        text(
-            """
+    # Use database-appropriate UPSERT syntax
+    if settings.is_postgres:
+        # PostgreSQL: Use INSERT ... ON CONFLICT
+        query = """
+            INSERT INTO app_settings (key, value, updated_at)
+            VALUES ('current_user_id', :user_id, :updated_at)
+            ON CONFLICT (key)
+            DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+        """
+    else:
+        # SQLite: Use INSERT OR REPLACE
+        query = """
             INSERT OR REPLACE INTO app_settings (key, value, updated_at)
             VALUES ('current_user_id', :user_id, :updated_at)
         """
-        ),
+
+    db.execute(
+        text(query),
         {"user_id": user_id, "updated_at": datetime.now().isoformat()},
     )
     db.commit()

@@ -94,14 +94,12 @@ class Settings:
                     'python -c "import secrets; print(secrets.token_urlsafe(32))"'
                 )
 
-            # Warn if using SQLite in production (not recommended for multi-user)
+            # Require PostgreSQL in production (SQLite not suitable for cloud deployment)
             if self.is_sqlite:
-                import warnings
-
-                warnings.warn(
-                    "Using SQLite in production is not recommended for multi-user scenarios. "
-                    "Consider using PostgreSQL by setting DATABASE_URL environment variable.",
-                    UserWarning,
+                raise ValueError(
+                    "SQLite is not supported in production. "
+                    "Please set DATABASE_URL to a PostgreSQL connection string. "
+                    "For Render, this is automatically provided via the database service."
                 )
 
     def __repr__(self) -> str:
