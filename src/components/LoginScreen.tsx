@@ -47,7 +47,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4 text-center">
           <div className="flex justify-center">
-            <img src={logo} alt="ProjectGoat Logo" className="h-20 w-auto" />
+            <img src={logo} alt="ProjectGoat Logo" className="h-32 w-auto max-w-xs object-contain" />
           </div>
           <CardTitle className="text-2xl">Welcome to ProjectGoat</CardTitle>
           <CardDescription>Sign in to access your project management dashboard</CardDescription>
