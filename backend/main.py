@@ -20,7 +20,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 # Try relative imports first (when run as package), fall back to absolute (when run standalone)
 try:
-    from . import auth, crud, csrf, models, rate_limiter, schemas
+    from . import auth, crud, csrf, models, rate_limiter, schemas, team_crud
     from .config import settings
     from .database import SessionLocal, engine, get_db
     from .logging_config import logger
@@ -31,9 +31,23 @@ except ImportError:
     import models
     import rate_limiter
     import schemas
+    import team_crud
     from config import settings
     from database import SessionLocal, engine, get_db
     from logging_config import logger
+
+
+# ==================== Auth Context ====================
+
+
+class AuthContext:
+    """Authentication context with user and team information"""
+
+    def __init__(self, user_id: str, team_id: Optional[str] = None, role: Optional[str] = None):
+        self.user_id = user_id
+        self.team_id = team_id
+        self.role = role  # Role in current team
+
 
 # Create database tables
 models.Base.metadata.create_all(bind=engine)
@@ -187,13 +201,86 @@ def require_auth(http_request: Request, db: Session = Depends(get_db)) -> str:
     return user_id
 
 
+def require_auth_with_team(http_request: Request, db: Session = Depends(get_db)) -> AuthContext:
+    """
+    Dependency to require authentication with team context.
+    Returns AuthContext with user_id, team_id, and role.
+    Raises 401 if not authenticated, 400 if no team context.
+    """
+    session_id = http_request.headers.get("X-Session-ID")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    session = auth.get_session(db, session_id)
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+    # Get team context
+    team_id = session.current_team_id
+
+    # If no team in session, try to get user's first team
+    if not team_id:
+        teams = team_crud.get_teams_for_user(db, session.user_id)
+        if teams:
+            team_id = teams[0].id
+            # Update session with team
+            auth.switch_team(db, session_id, team_id)
+
+    if not team_id:
+        raise HTTPException(
+            status_code=400, detail="No team context. Please join or create a team."
+        )
+
+    # Get user's role in this team
+    role = team_crud.get_user_role_in_team(db, team_id, session.user_id)
+    if not role:
+        raise HTTPException(status_code=403, detail="Not a member of this team")
+
+    return AuthContext(user_id=session.user_id, team_id=team_id, role=role)
+
+
+def require_admin(auth_ctx: AuthContext = Depends(require_auth_with_team)) -> AuthContext:
+    """
+    Dependency to require admin role in current team.
+    """
+    if auth_ctx.role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return auth_ctx
+
+
+def get_optional_team_context(
+    http_request: Request, db: Session = Depends(get_db)
+) -> Optional[AuthContext]:
+    """
+    Get team context if available, otherwise return None.
+    Used for endpoints that should filter by team when authenticated but still work without.
+    """
+    session_id = http_request.headers.get("X-Session-ID")
+    if not session_id:
+        return None
+
+    session = auth.get_session(db, session_id)
+    if not session or not session.current_team_id:
+        return None
+
+    role = team_crud.get_user_role_in_team(db, session.current_team_id, session.user_id)
+    if not role:
+        return None
+
+    return AuthContext(user_id=session.user_id, team_id=session.current_team_id, role=role)
+
+
 # ==================== User Endpoints ====================
 
 
 @app.get("/api/users", response_model=List[schemas.User])
-def list_users(db: Session = Depends(get_db), user_id: str = Depends(require_auth)):
-    """Get all users"""
-    return crud.get_users(db)
+def list_users(
+    http_request: Request, db: Session = Depends(get_db), user_id: str = Depends(require_auth)
+):
+    """Get all users (filtered by team if team context available)"""
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    return crud.get_users(db, team_id=team_id)
 
 
 # Profile endpoints must come before {user_id} to avoid route conflicts
@@ -311,24 +398,34 @@ def update_user(user_id: str, user: schemas.UserUpdate, db: Session = Depends(ge
 
 
 @app.get("/api/projects", response_model=List[schemas.Project])
-def list_projects(db: Session = Depends(get_db), user_id: str = Depends(require_auth)):
-    """Get all projects"""
-    return crud.get_projects(db)
+def list_projects(
+    http_request: Request, db: Session = Depends(get_db), user_id: str = Depends(require_auth)
+):
+    """Get all projects (filtered by team if team context available)"""
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    return crud.get_projects(db, team_id=team_id)
 
 
 @app.get("/api/projects/{project_id}", response_model=schemas.Project)
-def get_project(project_id: str, db: Session = Depends(get_db)):
+def get_project(project_id: str, http_request: Request, db: Session = Depends(get_db)):
     """Get specific project"""
-    project = crud.get_project(db, project_id)
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    project = crud.get_project(db, project_id, team_id=team_id)
     if not project:
         raise HTTPException(status_code=404, detail=f"Project with id '{project_id}' not found")
     return project
 
 
 @app.post("/api/projects", response_model=schemas.Project, status_code=status.HTTP_201_CREATED)
-def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)):
-    """Create new project"""
-    return crud.create_project(db, project)
+def create_project(
+    project: schemas.ProjectCreate, http_request: Request, db: Session = Depends(get_db)
+):
+    """Create new project (associated with team if team context available)"""
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    return crud.create_project(db, project, team_id=team_id)
 
 
 @app.put("/api/projects/{project_id}", response_model=schemas.Project)
@@ -399,6 +496,7 @@ def serialize_task(task: models.Task) -> dict:
 
 @app.get("/api/tasks")
 def list_tasks(
+    http_request: Request,
     project_id: Optional[str] = None,
     assignee_id: Optional[str] = None,
     status: Optional[str] = None,
@@ -408,8 +506,12 @@ def list_tasks(
     db: Session = Depends(get_db),
     user_id: str = Depends(require_auth),
 ):
-    """Get all tasks with optional filtering"""
-    tasks = crud.get_tasks(db, project_id, assignee_id, status, is_blocked, limit, offset)
+    """Get all tasks with optional filtering (filtered by team if team context available)"""
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    tasks = crud.get_tasks(
+        db, project_id, assignee_id, status, is_blocked, limit, offset, team_id=team_id
+    )
     return [serialize_task(task) for task in tasks]
 
 
@@ -538,16 +640,22 @@ def serialize_sprint(sprint: models.Sprint) -> dict:
 
 
 @app.get("/api/sprints")
-def list_sprints(db: Session = Depends(get_db)):
-    """Get all sprints"""
-    sprints = crud.get_sprints(db)
+def list_sprints(http_request: Request, db: Session = Depends(get_db)):
+    """Get all sprints (filtered by team if team context available)"""
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    sprints = crud.get_sprints(db, team_id=team_id)
     return [serialize_sprint(sprint) for sprint in sprints]
 
 
 @app.post("/api/sprints", status_code=status.HTTP_201_CREATED)
-def create_sprint(sprint: schemas.SprintCreate, db: Session = Depends(get_db)):
-    """Create new sprint"""
-    created_sprint = crud.create_sprint(db, sprint)
+def create_sprint(
+    sprint: schemas.SprintCreate, http_request: Request, db: Session = Depends(get_db)
+):
+    """Create new sprint (associated with team if team context available)"""
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    created_sprint = crud.create_sprint(db, sprint, team_id=team_id)
     return serialize_sprint(created_sprint)
 
 
@@ -555,24 +663,32 @@ def create_sprint(sprint: schemas.SprintCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/api/risks", response_model=List[schemas.Risk])
-def list_risks(db: Session = Depends(get_db), user_id: str = Depends(require_auth)):
-    """Get all risks"""
-    return crud.get_risks(db)
+def list_risks(
+    http_request: Request, db: Session = Depends(get_db), user_id: str = Depends(require_auth)
+):
+    """Get all risks (filtered by team if team context available)"""
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    return crud.get_risks(db, team_id=team_id)
 
 
 @app.get("/api/risks/{risk_id}", response_model=schemas.Risk)
-def get_risk(risk_id: str, db: Session = Depends(get_db)):
+def get_risk(risk_id: str, http_request: Request, db: Session = Depends(get_db)):
     """Get specific risk"""
-    risk = crud.get_risk(db, risk_id)
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    risk = crud.get_risk(db, risk_id, team_id=team_id)
     if not risk:
         raise HTTPException(status_code=404, detail=f"Risk with id '{risk_id}' not found")
     return risk
 
 
 @app.post("/api/risks", response_model=schemas.Risk, status_code=status.HTTP_201_CREATED)
-def create_risk(risk: schemas.RiskCreate, db: Session = Depends(get_db)):
-    """Create new risk"""
-    return crud.create_risk(db, risk)
+def create_risk(risk: schemas.RiskCreate, http_request: Request, db: Session = Depends(get_db)):
+    """Create new risk (associated with team if team context available)"""
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    return crud.create_risk(db, risk, team_id=team_id)
 
 
 @app.put("/api/risks/{risk_id}", response_model=schemas.Risk)
@@ -613,29 +729,36 @@ def serialize_issue(issue: models.Issue) -> dict:
 
 @app.get("/api/issues")
 def list_issues(
+    http_request: Request,
     status: Optional[str] = None,
     assignee_id: Optional[str] = None,
     db: Session = Depends(get_db),
     user_id: str = Depends(require_auth),
 ):
-    """Get all issues with optional filtering"""
-    issues = crud.get_issues(db, status, assignee_id)
+    """Get all issues with optional filtering (filtered by team if team context available)"""
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    issues = crud.get_issues(db, status, assignee_id, team_id=team_id)
     return [serialize_issue(issue) for issue in issues]
 
 
 @app.get("/api/issues/{issue_id}")
-def get_issue(issue_id: str, db: Session = Depends(get_db)):
+def get_issue(issue_id: str, http_request: Request, db: Session = Depends(get_db)):
     """Get specific issue"""
-    issue = crud.get_issue(db, issue_id)
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    issue = crud.get_issue(db, issue_id, team_id=team_id)
     if not issue:
         raise HTTPException(status_code=404, detail=f"Issue with id '{issue_id}' not found")
     return serialize_issue(issue)
 
 
 @app.post("/api/issues", status_code=status.HTTP_201_CREATED)
-def create_issue(issue: schemas.IssueCreate, db: Session = Depends(get_db)):
-    """Create new issue"""
-    created_issue = crud.create_issue(db, issue)
+def create_issue(issue: schemas.IssueCreate, http_request: Request, db: Session = Depends(get_db)):
+    """Create new issue (associated with team if team context available)"""
+    team_ctx = get_optional_team_context(http_request, db)
+    team_id = team_ctx.team_id if team_ctx else None
+    created_issue = crud.create_issue(db, issue, team_id=team_id)
     return serialize_issue(created_issue)
 
 
@@ -735,8 +858,20 @@ def login(request: schemas.LoginRequest, http_request: Request, db: Session = De
     )
     db.commit()
 
-    # Create session
-    session_id = auth.create_session(db, user.id)
+    # Get user's teams and set the first one as current
+    teams = team_crud.get_teams_for_user(db, user.id)
+    current_team = teams[0] if teams else None
+    current_team_id = current_team.id if current_team else None
+
+    # Get user's role in current team
+    current_role = user.role  # Default to stored role
+    if current_team_id:
+        team_role = team_crud.get_user_role_in_team(db, current_team_id, user.id)
+        if team_role:
+            current_role = team_role
+
+    # Create session with team context
+    session_id = auth.create_session(db, user.id, current_team_id)
 
     # Set as current user
     auth.set_current_user_setting(db, user.id)
@@ -745,19 +880,51 @@ def login(request: schemas.LoginRequest, http_request: Request, db: Session = De
     csrf_token = csrf.generate_csrf_token()
     csrf.store_csrf_token(session_id, csrf_token)
 
-    # Convert to response
-    return schemas.LoginResponse(
-        sessionId=session_id,
-        csrfToken=csrf_token,
-        user=schemas.User(
-            id=user.id,
-            name=user.name,
-            email=user.email,
-            role=user.role,
-            avatar=user.avatar,
-            availability=user.availability,
-        ),
-    )
+    # Convert to response - use new response type if team exists
+    if current_team:
+        return schemas.LoginResponseWithTeam(
+            sessionId=session_id,
+            csrfToken=csrf_token,
+            user=schemas.User(
+                id=user.id,
+                name=user.name,
+                email=user.email,
+                role=current_role,
+                avatar=user.avatar,
+                availability=user.availability,
+            ),
+            team=schemas.Team(
+                id=current_team.id,
+                name=current_team.name,
+                accountType=current_team.account_type,
+                createdAt=current_team.created_at,
+                isArchived=current_team.is_archived,
+            ),
+            teams=[
+                schemas.Team(
+                    id=t.id,
+                    name=t.name,
+                    accountType=t.account_type,
+                    createdAt=t.created_at,
+                    isArchived=t.is_archived,
+                )
+                for t in teams
+            ],
+        )
+    else:
+        # Legacy response for users without teams (backward compatibility)
+        return schemas.LoginResponse(
+            sessionId=session_id,
+            csrfToken=csrf_token,
+            user=schemas.User(
+                id=user.id,
+                name=user.name,
+                email=user.email,
+                role=user.role,
+                avatar=user.avatar,
+                availability=user.availability,
+            ),
+        )
 
 
 @app.get("/api/auth/session", response_model=schemas.SessionResponse)
@@ -866,6 +1033,461 @@ def change_password(
 
     return schemas.ChangePasswordResponse(
         success=True, message="Password changed successfully", csrf_token=new_csrf_token
+    )
+
+
+@app.post("/api/auth/register", response_model=schemas.RegisterResponse)
+def register(request: schemas.RegisterRequest, db: Session = Depends(get_db)):
+    """Register a new team with an admin user"""
+    # Check if email already exists
+    existing_user = crud.get_user_by_email(db, request.admin.email)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Validate password strength
+    is_valid, error_message = auth.validate_password_strength(request.admin.password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_message)
+
+    # Create team and admin user
+    team, user = team_crud.register_team_with_admin(
+        db,
+        team_name=request.team_name,
+        account_type=request.account_type,
+        admin_name=request.admin.name,
+        admin_email=request.admin.email,
+        admin_password=request.admin.password,
+    )
+
+    # Create session with team context
+    session_id = auth.create_session(db, user.id, team.id)
+
+    # Generate CSRF token
+    csrf_token = csrf.generate_csrf_token()
+    csrf.store_csrf_token(session_id, csrf_token)
+
+    return schemas.RegisterResponse(
+        sessionId=session_id,
+        csrfToken=csrf_token,
+        user=schemas.User(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            role="admin",
+            avatar=user.avatar,
+            availability=user.availability,
+        ),
+        team=schemas.Team(
+            id=team.id,
+            name=team.name,
+            accountType=team.account_type,
+            createdAt=team.created_at,
+            isArchived=team.is_archived,
+        ),
+    )
+
+
+# ==================== Team Endpoints ====================
+
+
+@app.get("/api/teams", response_model=List[schemas.Team])
+def list_user_teams(http_request: Request, db: Session = Depends(get_db)):
+    """Get all teams the current user belongs to"""
+    session_id = http_request.headers.get("X-Session-ID")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user_id = auth.get_session_user(db, session_id)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+    teams = team_crud.get_teams_for_user(db, user_id)
+    return [
+        schemas.Team(
+            id=t.id,
+            name=t.name,
+            accountType=t.account_type,
+            createdAt=t.created_at,
+            isArchived=t.is_archived,
+        )
+        for t in teams
+    ]
+
+
+@app.get("/api/teams/current", response_model=schemas.Team)
+def get_current_team(
+    auth_ctx: AuthContext = Depends(require_auth_with_team), db: Session = Depends(get_db)
+):
+    """Get the current team"""
+    team = team_crud.get_team(db, auth_ctx.team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    return schemas.Team(
+        id=team.id,
+        name=team.name,
+        accountType=team.account_type,
+        createdAt=team.created_at,
+        isArchived=team.is_archived,
+    )
+
+
+@app.put("/api/teams/current", response_model=schemas.Team)
+def update_current_team(
+    request: schemas.TeamUpdate,
+    auth_ctx: AuthContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Update the current team (admin only)"""
+    if not request.name:
+        raise HTTPException(status_code=400, detail="Team name is required")
+
+    team = team_crud.update_team(db, auth_ctx.team_id, request.name)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    return schemas.Team(
+        id=team.id,
+        name=team.name,
+        accountType=team.account_type,
+        createdAt=team.created_at,
+        isArchived=team.is_archived,
+    )
+
+
+@app.post("/api/teams/switch")
+def switch_team(
+    request: schemas.TeamSwitchRequest, http_request: Request, db: Session = Depends(get_db)
+):
+    """Switch to a different team"""
+    session_id = http_request.headers.get("X-Session-ID")
+    if not session_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user_id = auth.get_session_user(db, session_id)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+    # Verify user is member of target team
+    role = team_crud.get_user_role_in_team(db, request.team_id, user_id)
+    if not role:
+        raise HTTPException(status_code=403, detail="Not a member of this team")
+
+    # Switch team
+    auth.switch_team(db, session_id, request.team_id)
+
+    # Get team details
+    team = team_crud.get_team(db, request.team_id)
+
+    return {
+        "message": "Team switched successfully",
+        "team": schemas.Team(
+            id=team.id,
+            name=team.name,
+            accountType=team.account_type,
+            createdAt=team.created_at,
+            isArchived=team.is_archived,
+        ),
+    }
+
+
+# ==================== Team Member Endpoints ====================
+
+
+@app.get("/api/teams/current/members", response_model=List[schemas.TeamMember])
+def list_team_members(
+    auth_ctx: AuthContext = Depends(require_auth_with_team), db: Session = Depends(get_db)
+):
+    """Get all members of the current team"""
+    members = team_crud.get_team_members(db, auth_ctx.team_id)
+    return [
+        schemas.TeamMember(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            role=membership.role,
+            avatar=user.avatar,
+            availability=user.availability,
+            joinedAt=membership.joined_at,
+        )
+        for user, membership in members
+    ]
+
+
+@app.post(
+    "/api/teams/current/members",
+    response_model=schemas.TeamMember,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_team_member(
+    request: schemas.CreateTeamMemberRequest,
+    auth_ctx: AuthContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Create a new user and add them to the team (admin only)"""
+    # Check if email already exists
+    existing_user = crud.get_user_by_email(db, request.email)
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    # Validate password strength
+    is_valid, error_message = auth.validate_password_strength(request.password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_message)
+
+    # Create user and add to team
+    user = team_crud.create_team_member(
+        db,
+        team_id=auth_ctx.team_id,
+        name=request.name,
+        email=request.email,
+        password=request.password,
+        role=request.role,
+    )
+
+    # Get membership for joined_at
+    membership = team_crud.get_team_membership(db, auth_ctx.team_id, user.id)
+
+    return schemas.TeamMember(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        role=membership.role,
+        avatar=user.avatar,
+        availability=user.availability,
+        joinedAt=membership.joined_at,
+    )
+
+
+@app.put("/api/teams/current/members/{user_id}/role", response_model=schemas.TeamMember)
+def update_member_role(
+    user_id: str,
+    request: schemas.TeamMemberRoleUpdate,
+    auth_ctx: AuthContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Update a team member's role (admin only)"""
+    # Can't change own role
+    if user_id == auth_ctx.user_id:
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+
+    # Check if this would remove the last admin
+    if request.role != "admin":
+        membership = team_crud.get_team_membership(db, auth_ctx.team_id, user_id)
+        if membership and membership.role == "admin":
+            admin_count = team_crud.count_team_admins(db, auth_ctx.team_id)
+            if admin_count <= 1:
+                raise HTTPException(status_code=400, detail="Cannot remove the last admin")
+
+    membership = team_crud.update_member_role(db, auth_ctx.team_id, user_id, request.role)
+    if not membership:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    user = crud.get_user(db, user_id)
+    return schemas.TeamMember(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        role=membership.role,
+        avatar=user.avatar,
+        availability=user.availability,
+        joinedAt=membership.joined_at,
+    )
+
+
+@app.delete("/api/teams/current/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_team_member(
+    user_id: str,
+    request: schemas.RemoveMemberOptions = None,
+    auth_ctx: AuthContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Remove a member from the team (admin only)"""
+    # Can't remove yourself
+    if user_id == auth_ctx.user_id:
+        raise HTTPException(status_code=400, detail="Cannot remove yourself from the team")
+
+    # Check if this would remove the last admin
+    membership = team_crud.get_team_membership(db, auth_ctx.team_id, user_id)
+    if membership and membership.role == "admin":
+        admin_count = team_crud.count_team_admins(db, auth_ctx.team_id)
+        if admin_count <= 1:
+            raise HTTPException(status_code=400, detail="Cannot remove the last admin")
+
+    task_action = request.task_action if request else "unassign"
+    success = team_crud.remove_member_from_team(db, auth_ctx.team_id, user_id, task_action)
+    if not success:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+
+# ==================== Invitation Endpoints ====================
+
+
+@app.post(
+    "/api/invitations", response_model=schemas.Invitation, status_code=status.HTTP_201_CREATED
+)
+def create_invitation(
+    request: schemas.InvitationCreate,
+    auth_ctx: AuthContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Create an invitation to join the team (admin only)"""
+    # Check if user already exists in team
+    existing_user = crud.get_user_by_email(db, request.email)
+    if existing_user:
+        existing_membership = team_crud.get_team_membership(db, auth_ctx.team_id, existing_user.id)
+        if existing_membership:
+            raise HTTPException(status_code=400, detail="User is already a member of this team")
+
+    # Check if invitation already exists
+    existing_invitation = team_crud.get_invitation_by_email(db, auth_ctx.team_id, request.email)
+    if existing_invitation:
+        raise HTTPException(status_code=400, detail="An invitation for this email already exists")
+
+    invitation = team_crud.create_invitation(
+        db,
+        team_id=auth_ctx.team_id,
+        email=request.email,
+        role=request.role,
+        invited_by_user_id=auth_ctx.user_id,
+    )
+
+    inviter = crud.get_user(db, auth_ctx.user_id)
+    return schemas.Invitation(
+        id=invitation.id,
+        email=invitation.email,
+        role=invitation.role,
+        invitedByName=inviter.name,
+        expiresAt=invitation.expires_at,
+        createdAt=invitation.created_at,
+    )
+
+
+@app.get("/api/invitations", response_model=List[schemas.Invitation])
+def list_invitations(auth_ctx: AuthContext = Depends(require_admin), db: Session = Depends(get_db)):
+    """List pending invitations for the team (admin only)"""
+    invitations = team_crud.get_pending_invitations(db, auth_ctx.team_id)
+    result = []
+    for inv in invitations:
+        inviter = crud.get_user(db, inv.invited_by_user_id)
+        result.append(
+            schemas.Invitation(
+                id=inv.id,
+                email=inv.email,
+                role=inv.role,
+                invitedByName=inviter.name if inviter else "Unknown",
+                expiresAt=inv.expires_at,
+                createdAt=inv.created_at,
+            )
+        )
+    return result
+
+
+@app.delete("/api/invitations/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_invitation(
+    invitation_id: str,
+    auth_ctx: AuthContext = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Revoke an invitation (admin only)"""
+    success = team_crud.revoke_invitation(db, invitation_id, auth_ctx.team_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+
+
+@app.get("/api/invitations/{token}/details", response_model=schemas.InvitationDetails)
+def get_invitation_details(token: str, db: Session = Depends(get_db)):
+    """Get invitation details by token (for accept page)"""
+    invitation = team_crud.get_invitation_by_token(db, token)
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found or expired")
+
+    if invitation.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invitation has expired")
+
+    team = team_crud.get_team(db, invitation.team_id)
+    inviter = crud.get_user(db, invitation.invited_by_user_id)
+
+    return schemas.InvitationDetails(
+        teamName=team.name,
+        teamAccountType=team.account_type,
+        invitedByName=inviter.name if inviter else "Unknown",
+        email=invitation.email,
+        role=invitation.role,
+        expiresAt=invitation.expires_at,
+    )
+
+
+@app.post("/api/invitations/{token}/accept", response_model=schemas.RegisterResponse)
+def accept_invitation(token: str, request: schemas.InvitationAccept, db: Session = Depends(get_db)):
+    """Accept an invitation and create account"""
+    invitation = team_crud.get_invitation_by_token(db, token)
+    if not invitation:
+        raise HTTPException(status_code=404, detail="Invitation not found or expired")
+
+    if invitation.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=400, detail="Invitation has expired")
+
+    # Check if user already exists
+    existing_user = crud.get_user_by_email(db, invitation.email)
+    if existing_user:
+        # User exists, just add to team
+        existing_membership = team_crud.get_team_membership(
+            db, invitation.team_id, existing_user.id
+        )
+        if existing_membership:
+            raise HTTPException(status_code=400, detail="Already a member of this team")
+
+        team_crud.accept_invitation(db, invitation, existing_user.id)
+        user = existing_user
+    else:
+        # Validate password strength
+        is_valid, error_message = auth.validate_password_strength(request.password)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error_message)
+
+        # Create new user
+        user = team_crud.create_team_member(
+            db,
+            team_id=invitation.team_id,
+            name=request.name,
+            email=invitation.email,
+            password=request.password,
+            role=invitation.role,
+        )
+
+        # Mark invitation as accepted
+        invitation.accepted_at = datetime.utcnow()
+        db.commit()
+
+    # Get team
+    team = team_crud.get_team(db, invitation.team_id)
+
+    # Create session
+    session_id = auth.create_session(db, user.id, team.id)
+
+    # Generate CSRF token
+    csrf_token = csrf.generate_csrf_token()
+    csrf.store_csrf_token(session_id, csrf_token)
+
+    return schemas.RegisterResponse(
+        sessionId=session_id,
+        csrfToken=csrf_token,
+        user=schemas.User(
+            id=user.id,
+            name=user.name,
+            email=user.email,
+            role=invitation.role,
+            avatar=user.avatar,
+            availability=user.availability,
+        ),
+        team=schemas.Team(
+            id=team.id,
+            name=team.name,
+            accountType=team.account_type,
+            createdAt=team.created_at,
+            isArchived=team.is_archived,
+        ),
     )
 
 

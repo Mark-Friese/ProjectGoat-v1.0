@@ -19,7 +19,16 @@ import json
 # ==================== Users ====================
 
 
-def get_users(db: Session) -> List[models.User]:
+def get_users(db: Session, team_id: Optional[str] = None) -> List[models.User]:
+    """Get users. If team_id provided, returns only team members."""
+    if team_id:
+        # Join with team_memberships to get only team members
+        return (
+            db.query(models.User)
+            .join(models.TeamMembership, models.User.id == models.TeamMembership.user_id)
+            .filter(models.TeamMembership.team_id == team_id)
+            .all()
+        )
     return db.query(models.User).all()
 
 
@@ -53,16 +62,32 @@ def update_user(db: Session, user_id: str, user: schemas.UserUpdate) -> Optional
 # ==================== Projects ====================
 
 
-def get_projects(db: Session) -> List[models.Project]:
-    return db.query(models.Project).all()
+def get_projects(db: Session, team_id: Optional[str] = None) -> List[models.Project]:
+    """Get projects. If team_id provided, filters by team."""
+    query = db.query(models.Project)
+    if team_id:
+        query = query.filter(models.Project.team_id == team_id)
+    return query.all()
 
 
-def get_project(db: Session, project_id: str) -> Optional[models.Project]:
-    return db.query(models.Project).filter(models.Project.id == project_id).first()
+def get_project(
+    db: Session, project_id: str, team_id: Optional[str] = None
+) -> Optional[models.Project]:
+    """Get project by ID. If team_id provided, verifies project belongs to team."""
+    query = db.query(models.Project).filter(models.Project.id == project_id)
+    if team_id:
+        query = query.filter(models.Project.team_id == team_id)
+    return query.first()
 
 
-def create_project(db: Session, project: schemas.ProjectCreate) -> models.Project:
-    db_project = models.Project(**project.model_dump(by_alias=False))
+def create_project(
+    db: Session, project: schemas.ProjectCreate, team_id: Optional[str] = None
+) -> models.Project:
+    """Create project. If team_id provided, associates project with team."""
+    project_data = project.model_dump(by_alias=False)
+    if team_id:
+        project_data["team_id"] = team_id
+    db_project = models.Project(**project_data)
     db.add(db_project)
     db.commit()
     db.refresh(db_project)
@@ -102,8 +127,14 @@ def get_tasks(
     is_blocked: Optional[bool] = None,
     limit: int = 100,
     offset: int = 0,
+    team_id: Optional[str] = None,
 ) -> List[models.Task]:
+    """Get tasks with optional filtering. If team_id provided, filters to team's projects."""
     query = db.query(models.Task)
+
+    # Filter by team via project
+    if team_id:
+        query = query.join(models.Project).filter(models.Project.team_id == team_id)
 
     if project_id:
         query = query.filter(models.Task.project_id == project_id)
@@ -266,11 +297,18 @@ def delete_blocker(db: Session, blocker_id: str) -> bool:
 # ==================== Sprints ====================
 
 
-def get_sprints(db: Session) -> List[models.Sprint]:
-    return db.query(models.Sprint).all()
+def get_sprints(db: Session, team_id: Optional[str] = None) -> List[models.Sprint]:
+    """Get sprints. If team_id provided, filters by team."""
+    query = db.query(models.Sprint)
+    if team_id:
+        query = query.filter(models.Sprint.team_id == team_id)
+    return query.all()
 
 
-def create_sprint(db: Session, sprint: schemas.SprintCreate) -> models.Sprint:
+def create_sprint(
+    db: Session, sprint: schemas.SprintCreate, team_id: Optional[str] = None
+) -> models.Sprint:
+    """Create sprint. If team_id provided, associates sprint with team."""
     sprint_data = sprint.model_dump(by_alias=False)
 
     # Convert lists to JSON strings
@@ -278,6 +316,9 @@ def create_sprint(db: Session, sprint: schemas.SprintCreate) -> models.Sprint:
         sprint_data["goals"] = json.dumps(sprint_data["goals"])
     if "task_ids" in sprint_data:
         sprint_data["task_ids"] = json.dumps(sprint_data["task_ids"])
+
+    if team_id:
+        sprint_data["team_id"] = team_id
 
     db_sprint = models.Sprint(**sprint_data)
     db.add(db_sprint)
@@ -289,16 +330,30 @@ def create_sprint(db: Session, sprint: schemas.SprintCreate) -> models.Sprint:
 # ==================== Risks ====================
 
 
-def get_risks(db: Session) -> List[models.Risk]:
-    return db.query(models.Risk).all()
+def get_risks(db: Session, team_id: Optional[str] = None) -> List[models.Risk]:
+    """Get risks. If team_id provided, filters by team."""
+    query = db.query(models.Risk)
+    if team_id:
+        query = query.filter(models.Risk.team_id == team_id)
+    return query.all()
 
 
-def get_risk(db: Session, risk_id: str) -> Optional[models.Risk]:
-    return db.query(models.Risk).filter(models.Risk.id == risk_id).first()
+def get_risk(db: Session, risk_id: str, team_id: Optional[str] = None) -> Optional[models.Risk]:
+    """Get risk by ID. If team_id provided, verifies risk belongs to team."""
+    query = db.query(models.Risk).filter(models.Risk.id == risk_id)
+    if team_id:
+        query = query.filter(models.Risk.team_id == team_id)
+    return query.first()
 
 
-def create_risk(db: Session, risk: schemas.RiskCreate) -> models.Risk:
-    db_risk = models.Risk(**risk.model_dump(by_alias=False))
+def create_risk(
+    db: Session, risk: schemas.RiskCreate, team_id: Optional[str] = None
+) -> models.Risk:
+    """Create risk. If team_id provided, associates risk with team."""
+    risk_data = risk.model_dump(by_alias=False)
+    if team_id:
+        risk_data["team_id"] = team_id
+    db_risk = models.Risk(**risk_data)
     db.add(db_risk)
     db.commit()
     db.refresh(db_risk)
@@ -329,10 +384,16 @@ def delete_risk(db: Session, risk_id: str) -> bool:
 
 
 def get_issues(
-    db: Session, status: Optional[str] = None, assignee_id: Optional[str] = None
+    db: Session,
+    status: Optional[str] = None,
+    assignee_id: Optional[str] = None,
+    team_id: Optional[str] = None,
 ) -> List[models.Issue]:
+    """Get issues. If team_id provided, filters by team."""
     query = db.query(models.Issue)
 
+    if team_id:
+        query = query.filter(models.Issue.team_id == team_id)
     if status:
         query = query.filter(models.Issue.status == status)
     if assignee_id:
@@ -341,16 +402,26 @@ def get_issues(
     return query.all()
 
 
-def get_issue(db: Session, issue_id: str) -> Optional[models.Issue]:
-    return db.query(models.Issue).filter(models.Issue.id == issue_id).first()
+def get_issue(db: Session, issue_id: str, team_id: Optional[str] = None) -> Optional[models.Issue]:
+    """Get issue by ID. If team_id provided, verifies issue belongs to team."""
+    query = db.query(models.Issue).filter(models.Issue.id == issue_id)
+    if team_id:
+        query = query.filter(models.Issue.team_id == team_id)
+    return query.first()
 
 
-def create_issue(db: Session, issue: schemas.IssueCreate) -> models.Issue:
+def create_issue(
+    db: Session, issue: schemas.IssueCreate, team_id: Optional[str] = None
+) -> models.Issue:
+    """Create issue. If team_id provided, associates issue with team."""
     issue_data = issue.model_dump(by_alias=False)
 
     # Convert list to JSON string
     if "related_task_ids" in issue_data:
         issue_data["related_task_ids"] = json.dumps(issue_data["related_task_ids"])
+
+    if team_id:
+        issue_data["team_id"] = team_id
 
     db_issue = models.Issue(**issue_data, created_at=datetime.now())
     db.add(db_issue)

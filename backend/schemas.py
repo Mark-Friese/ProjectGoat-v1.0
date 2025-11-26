@@ -8,6 +8,116 @@ from typing import List, Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
+# ==================== Team Schemas ====================
+
+
+class TeamBase(BaseModel):
+    name: str = Field(..., max_length=200)
+    account_type: str = Field(default="single", pattern="^(single|multi)$", alias="accountType")
+
+    class Config:
+        populate_by_name = True
+
+
+class TeamCreate(TeamBase):
+    pass
+
+
+class TeamUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=200)
+
+    class Config:
+        populate_by_name = True
+
+
+class Team(TeamBase):
+    id: str
+    created_at: datetime = Field(alias="createdAt")
+    is_archived: bool = Field(default=False, alias="isArchived")
+
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+# ==================== Team Membership Schemas ====================
+
+
+class TeamMembershipBase(BaseModel):
+    role: str = Field(..., pattern="^(admin|member|viewer)$")
+
+
+class TeamMember(BaseModel):
+    """Team member with user details"""
+
+    id: str  # user id
+    name: str
+    email: str
+    role: str  # role in this team
+    avatar: Optional[str] = None
+    availability: bool = True
+    joined_at: datetime = Field(alias="joinedAt")
+
+    class Config:
+        populate_by_name = True
+
+
+class TeamMemberRoleUpdate(BaseModel):
+    role: str = Field(..., pattern="^(admin|member|viewer)$")
+
+
+class RemoveMemberOptions(BaseModel):
+    """Options for what to do with member's assigned tasks when removing them"""
+
+    task_action: str = Field(
+        default="unassign", pattern="^(unassign|reassign_admin|keep)$", alias="taskAction"
+    )
+
+    class Config:
+        populate_by_name = True
+
+
+# ==================== Invitation Schemas ====================
+
+
+class InvitationCreate(BaseModel):
+    email: EmailStr
+    role: str = Field(default="member", pattern="^(admin|member|viewer)$")
+
+
+class Invitation(BaseModel):
+    id: str
+    email: str
+    role: str
+    invited_by_name: str = Field(alias="invitedByName")
+    expires_at: datetime = Field(alias="expiresAt")
+    created_at: datetime = Field(alias="createdAt")
+
+    class Config:
+        populate_by_name = True
+
+
+class InvitationDetails(BaseModel):
+    """Details shown when viewing an invitation (for accept page)"""
+
+    team_name: str = Field(alias="teamName")
+    team_account_type: str = Field(alias="teamAccountType")
+    invited_by_name: str = Field(alias="invitedByName")
+    email: str
+    role: str
+    expires_at: datetime = Field(alias="expiresAt")
+
+    class Config:
+        populate_by_name = True
+
+
+class InvitationAccept(BaseModel):
+    """Request to accept an invitation"""
+
+    name: str = Field(..., max_length=200)
+    password: str = Field(..., min_length=8)
+
+
 # ==================== User Schemas ====================
 
 
@@ -373,3 +483,80 @@ class ChangePasswordResponse(BaseModel):
 
     class Config:
         populate_by_name = True
+
+
+# ==================== Registration Schemas ====================
+
+
+class AdminInfo(BaseModel):
+    """Admin user info for registration"""
+
+    name: str = Field(..., max_length=200)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+
+
+class RegisterRequest(BaseModel):
+    """Request to register a new team with admin"""
+
+    team_name: str = Field(..., max_length=200, alias="teamName")
+    account_type: str = Field(default="single", pattern="^(single|multi)$", alias="accountType")
+    admin: AdminInfo
+
+    class Config:
+        populate_by_name = True
+
+
+class RegisterResponse(BaseModel):
+    """Response after successful registration"""
+
+    session_id: str = Field(alias="sessionId")
+    csrf_token: str = Field(alias="csrfToken")
+    user: User
+    team: Team
+
+    class Config:
+        populate_by_name = True
+
+
+class LoginResponseWithTeam(BaseModel):
+    """Login response including team info"""
+
+    session_id: str = Field(alias="sessionId")
+    csrf_token: str = Field(alias="csrfToken")
+    user: User
+    team: Team
+    teams: List[Team] = []  # All teams user belongs to (for multi-team accounts)
+
+    class Config:
+        populate_by_name = True
+
+
+class SessionResponseWithTeam(BaseModel):
+    """Session check response including team info"""
+
+    user: Optional[User] = None
+    team: Optional[Team] = None
+    teams: List[Team] = []  # All teams user belongs to
+    authenticated: bool
+
+    class Config:
+        populate_by_name = True
+
+
+class TeamSwitchRequest(BaseModel):
+    """Request to switch to a different team"""
+
+    team_id: str = Field(alias="teamId")
+
+    class Config:
+        populate_by_name = True
+
+
+class CreateTeamMemberRequest(BaseModel):
+    """Request for admin to directly create a new team member"""
+
+    name: str = Field(..., max_length=200)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    role: str = Field(default="member", pattern="^(admin|member|viewer)$")

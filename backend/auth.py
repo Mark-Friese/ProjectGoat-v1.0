@@ -31,8 +31,10 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
 
 
-def create_session(db: DBSession, user_id: str, expires_days: int = 30) -> str:
-    """Create a new session for a user"""
+def create_session(
+    db: DBSession, user_id: str, team_id: Optional[str] = None, expires_days: int = 30
+) -> str:
+    """Create a new session for a user, optionally with a team context"""
     session_id = secrets.token_urlsafe(32)
     created_at = datetime.now()
     expires_at = created_at + timedelta(days=expires_days)
@@ -40,6 +42,7 @@ def create_session(db: DBSession, user_id: str, expires_days: int = 30) -> str:
     session = UserSession(
         id=session_id,
         user_id=user_id,
+        current_team_id=team_id,
         created_at=created_at,
         expires_at=expires_at,
         last_accessed=created_at,
@@ -182,3 +185,54 @@ def invalidate_user_sessions(db: DBSession, user_id: str, except_session_id: Opt
 
     query.delete(synchronize_session=False)
     db.commit()
+
+
+def get_session(db: DBSession, session_id: str) -> Optional[UserSession]:
+    """Get a session object if it's valid and not expired"""
+    session = db.query(UserSession).filter_by(id=session_id).first()
+
+    if not session:
+        return None
+
+    now = datetime.now()
+
+    # Check absolute expiration (30 days from creation)
+    if now > session.expires_at:
+        delete_session(db, session_id)
+        return None
+
+    # Check absolute timeout (8 hours from creation)
+    absolute_timeout = session.created_at + timedelta(hours=ABSOLUTE_TIMEOUT_HOURS)
+    if now > absolute_timeout:
+        delete_session(db, session_id)
+        return None
+
+    # Check idle timeout (30 minutes since last activity)
+    if session.last_activity_at:
+        idle_timeout = session.last_activity_at + timedelta(minutes=IDLE_TIMEOUT_MINUTES)
+        if now > idle_timeout:
+            delete_session(db, session_id)
+            return None
+
+    # Session is valid - update last accessed time
+    session.last_accessed = now
+    db.commit()
+
+    return session
+
+
+def switch_team(db: DBSession, session_id: str, team_id: str) -> bool:
+    """Switch the current team for a session"""
+    session = db.query(UserSession).filter_by(id=session_id).first()
+    if not session:
+        return False
+
+    session.current_team_id = team_id
+    db.commit()
+    return True
+
+
+def get_session_team_id(db: DBSession, session_id: str) -> Optional[str]:
+    """Get the current team ID from a session"""
+    session = db.query(UserSession).filter_by(id=session_id).first()
+    return session.current_team_id if session else None

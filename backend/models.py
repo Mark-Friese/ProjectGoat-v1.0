@@ -7,8 +7,94 @@ import json
 from datetime import datetime
 
 from database import Base
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
+
+# ==================== Team & Multi-Tenancy Models ====================
+
+
+class Team(Base):
+    """
+    Team/Organization model for multi-tenancy support.
+    Each team has its own isolated data (projects, tasks, etc.)
+    """
+
+    __tablename__ = "teams"
+
+    id = Column(String(50), primary_key=True)
+    name = Column(String(200), nullable=False)
+    account_type = Column(String(20), nullable=False, default="single")  # 'single' or 'multi'
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_by_user_id = Column(String(50), ForeignKey("users.id"), nullable=True)
+    is_archived = Column(Boolean, nullable=False, default=False)
+    archived_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    memberships = relationship(
+        "TeamMembership", back_populates="team", cascade="all, delete-orphan"
+    )
+    projects = relationship("Project", back_populates="team")
+    risks = relationship("Risk", back_populates="team")
+    issues = relationship("Issue", back_populates="team")
+    sprints = relationship("Sprint", back_populates="team")
+    invitations = relationship("Invitation", back_populates="team", cascade="all, delete-orphan")
+
+
+class TeamMembership(Base):
+    """
+    Junction table for user-team relationships.
+    Users can belong to multiple teams with different roles per team.
+    """
+
+    __tablename__ = "team_memberships"
+
+    id = Column(String(50), primary_key=True)
+    team_id = Column(String(50), ForeignKey("teams.id"), nullable=False, index=True)
+    user_id = Column(String(50), ForeignKey("users.id"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)  # 'admin', 'member', 'viewer'
+    joined_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (UniqueConstraint("team_id", "user_id", name="uq_team_user"),)
+
+    # Relationships
+    team = relationship("Team", back_populates="memberships")
+    user = relationship("User", back_populates="team_memberships")
+
+
+class Invitation(Base):
+    """
+    Team invitations for user onboarding.
+    Admins can invite users via email with a secure token.
+    """
+
+    __tablename__ = "invitations"
+
+    id = Column(String(50), primary_key=True)
+    team_id = Column(String(50), ForeignKey("teams.id"), nullable=False, index=True)
+    email = Column(String(200), nullable=False, index=True)
+    role = Column(String(20), nullable=False)  # Role user will have when they join
+    invited_by_user_id = Column(String(50), ForeignKey("users.id"), nullable=False)
+    token = Column(String(255), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime, nullable=False)
+    accepted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    # Relationships
+    team = relationship("Team", back_populates="invitations")
+    invited_by = relationship("User", foreign_keys=[invited_by_user_id])
+
+
+# ==================== User Models ====================
 
 
 class User(Base):
@@ -39,6 +125,9 @@ class User(Base):
     owned_risks = relationship("Risk", back_populates="owner")
     assigned_issues = relationship("Issue", back_populates="assignee")
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    team_memberships = relationship(
+        "TeamMembership", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class UserSession(Base):
@@ -51,6 +140,7 @@ class UserSession(Base):
 
     id = Column(String(255), primary_key=True)
     user_id = Column(String(50), ForeignKey("users.id"), nullable=False, index=True)
+    current_team_id = Column(String(50), ForeignKey("teams.id"), nullable=True, index=True)
     created_at = Column(DateTime, nullable=False)
     expires_at = Column(DateTime, nullable=False, index=True)
     last_accessed = Column(DateTime, nullable=False)
@@ -62,12 +152,16 @@ class UserSession(Base):
 
     # Relationships
     user = relationship("User", back_populates="sessions")
+    current_team = relationship("Team")
 
 
 class Project(Base):
     __tablename__ = "projects"
 
     id = Column(String(50), primary_key=True)
+    team_id = Column(
+        String(50), ForeignKey("teams.id"), nullable=True, index=True
+    )  # nullable for migration
     name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
     start_date = Column(Date, nullable=False)
@@ -75,6 +169,7 @@ class Project(Base):
     color = Column(String(7), nullable=False)  # Hex color #xxxxxx
 
     # Relationships
+    team = relationship("Team", back_populates="projects")
     tasks = relationship("Task", back_populates="project")
 
 
@@ -164,12 +259,18 @@ class Sprint(Base):
     __tablename__ = "sprints"
 
     id = Column(String(50), primary_key=True)
+    team_id = Column(
+        String(50), ForeignKey("teams.id"), nullable=True, index=True
+    )  # nullable for migration
     name = Column(String(200), nullable=False)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date, nullable=False)
     goals = Column(Text, nullable=True)  # JSON array
     task_ids = Column(Text, nullable=True)  # JSON array
     velocity = Column(Integer, nullable=False, default=0)
+
+    # Relationships
+    team = relationship("Team", back_populates="sprints")
 
     @property
     def goals_list(self):
@@ -200,6 +301,9 @@ class Risk(Base):
     __tablename__ = "risks"
 
     id = Column(String(50), primary_key=True)
+    team_id = Column(
+        String(50), ForeignKey("teams.id"), nullable=True, index=True
+    )  # nullable for migration
     title = Column(String(300), nullable=False)
     description = Column(Text, nullable=True)
     probability = Column(String(10), nullable=False)  # low, medium, high
@@ -209,6 +313,7 @@ class Risk(Base):
     status = Column(String(20), nullable=False, index=True)  # open, mitigated, closed
 
     # Relationships
+    team = relationship("Team", back_populates="risks")
     owner = relationship("User", back_populates="owned_risks")
 
 
@@ -216,6 +321,9 @@ class Issue(Base):
     __tablename__ = "issues"
 
     id = Column(String(50), primary_key=True)
+    team_id = Column(
+        String(50), ForeignKey("teams.id"), nullable=True, index=True
+    )  # nullable for migration
     title = Column(String(300), nullable=False)
     description = Column(Text, nullable=True)
     priority = Column(String(10), nullable=False)  # low, medium, high
@@ -226,6 +334,7 @@ class Issue(Base):
     resolved_at = Column(DateTime, nullable=True)
 
     # Relationships
+    team = relationship("Team", back_populates="issues")
     assignee = relationship("User", back_populates="assigned_issues")
 
     @property
