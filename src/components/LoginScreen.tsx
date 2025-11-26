@@ -13,9 +13,10 @@ import logo from '../assets/logo/project-goat-logo.svg';
 
 interface LoginScreenProps {
   onLoginSuccess: (user: User) => void;
+  onRegisterClick?: () => void;
 }
 
-export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
+export function LoginScreen({ onLoginSuccess, onRegisterClick }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -129,6 +130,20 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
                   </div>
                 </div>
               </div>
+
+              {onRegisterClick && (
+                <div className="text-center pt-2">
+                  <span className="text-sm text-gray-600">Don't have a team? </span>
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="text-sm px-0 h-auto"
+                    onClick={onRegisterClick}
+                  >
+                    Create one
+                  </Button>
+                </div>
+              )}
             </div>
           </form>
         </CardContent>

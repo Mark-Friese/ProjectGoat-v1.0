@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Task, User, Project, TaskStatus, Risk, Issue } from './types';
+import { Task, User, Project, TaskStatus, Risk, Issue, Team } from './types';
 import logo from './assets/logo/project-goat-logo.svg';
 import * as taskService from './services/tasks';
 import * as userService from './services/users';
@@ -8,6 +8,8 @@ import * as riskService from './services/risks';
 import * as issueService from './services/issues';
 import * as authService from './services/auth';
 import { LoginScreen } from './components/LoginScreen';
+import { RegistrationScreen } from './components/RegistrationScreen';
+import { InvitationAcceptScreen } from './components/InvitationAcceptScreen';
 import { ChangePasswordDialog } from './components/ChangePasswordDialog';
 import { SessionTimeoutDialog } from './components/SessionTimeoutDialog';
 import { sessionMonitor } from './utils/session-monitor';
@@ -21,6 +23,8 @@ import { TeamView } from './components/TeamView';
 import { ReportsView } from './components/ReportsView';
 import { ProfileView } from './components/ProfileView';
 import { ProjectsView } from './components/ProjectsView';
+import { TeamSettingsView } from './components/TeamSettingsView';
+import { TeamSwitcher } from './components/TeamSwitcher';
 import { TaskDialog } from './components/TaskDialog';
 import { ViewModeToggle } from './components/ViewModeToggle';
 import { ProjectSelector } from './components/ProjectSelector';
@@ -41,9 +45,11 @@ import {
   KeyRound,
   UserCircle,
   Briefcase,
+  Settings,
 } from 'lucide-react';
 
-type View = 'dashboard' | 'kanban' | 'list' | 'gantt' | 'calendar' | 'workload' | 'team' | 'reports' | 'profile' | 'projects';
+type View = 'dashboard' | 'kanban' | 'list' | 'gantt' | 'calendar' | 'workload' | 'team' | 'reports' | 'profile' | 'projects' | 'team-settings';
+type AuthScreen = 'login' | 'register' | 'invitation';
 
 interface NavigationItem {
   id: View;
@@ -62,6 +68,7 @@ const navigationItems: NavigationItem[] = [
   { id: 'team', label: 'Team Members', icon: Users },
   { id: 'reports', label: 'Reports', icon: BarChart3 },
   { id: 'profile', label: 'My Profile', icon: UserCircle },
+  { id: 'team-settings', label: 'Team Settings', icon: Settings },
 ];
 
 export default function App() {
@@ -72,7 +79,11 @@ export default function App() {
   const [risks, setRisks] = useState<Risk[]>([]);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentTeam, setCurrentTeam] = useState<Team | null>(null);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authScreen, setAuthScreen] = useState<AuthScreen>('login');
+  const [invitationToken, setInvitationToken] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | undefined>();
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -86,9 +97,27 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'project' | 'personal'>('project');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
+  // Check URL for invitation token on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const invite = urlParams.get('invite');
+    if (invite) {
+      setInvitationToken(invite);
+      setAuthScreen('invitation');
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   // Check for session and fetch initial data
   useEffect(() => {
     const initializeApp = async () => {
+      // Skip initialization if showing invitation screen
+      if (authScreen === 'invitation' && invitationToken) {
+        setIsLoading(false);
+        return;
+      }
+
       try {
         setIsLoading(true);
         setError(null);
@@ -99,6 +128,8 @@ export default function App() {
         if (sessionResponse.authenticated && sessionResponse.user) {
           // User is authenticated
           setCurrentUser(sessionResponse.user);
+          setCurrentTeam(sessionResponse.team || null);
+          setTeams(sessionResponse.teams || []);
           setIsAuthenticated(true);
 
           // Start session monitoring
@@ -141,7 +172,7 @@ export default function App() {
     };
 
     initializeApp();
-  }, []);
+  }, [authScreen, invitationToken]);
 
   // Load view mode and selected project from localStorage on mount
   useEffect(() => {
@@ -271,6 +302,45 @@ export default function App() {
     }
   };
 
+  const handleTeamUpdate = (updatedTeam: Team) => {
+    setCurrentTeam(updatedTeam);
+    setTeams(teams.map((t) => (t.id === updatedTeam.id ? updatedTeam : t)));
+  };
+
+  const handleTeamSwitch = async (team: Team) => {
+    setCurrentTeam(team);
+    setIsLoading(true);
+
+    try {
+      // Refetch all data for the new team
+      const [tasksData, usersData, projectsData, risksData, issuesData] = await Promise.all([
+        taskService.getTasks(),
+        userService.getUsers(),
+        projectService.getProjects(),
+        riskService.getRisks(),
+        issueService.getIssues(),
+      ]);
+
+      setTasks(tasksData);
+      setUsers(usersData);
+      setProjects(projectsData);
+      setRisks(risksData);
+      setIssues(issuesData);
+
+      // Reset selected project
+      if (projectsData.length > 0) {
+        setSelectedProjectId(projectsData[0].id);
+      } else {
+        setSelectedProjectId(null);
+      }
+    } catch (err) {
+      console.error('Failed to load team data:', err);
+      alert('Failed to load team data. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleLoginSuccess = async (user: User) => {
     // Set authentication state immediately to trigger UI update
     setCurrentUser(user);
@@ -290,8 +360,16 @@ export default function App() {
       }
     );
 
-    // Fetch all data after successful login
+    // Fetch session info to get team data, then fetch all data
     try {
+      const sessionResponse = await authService.checkSession();
+      if (sessionResponse.team) {
+        setCurrentTeam(sessionResponse.team);
+      }
+      if (sessionResponse.teams) {
+        setTeams(sessionResponse.teams);
+      }
+
       const [tasksData, usersData, projectsData, risksData, issuesData] = await Promise.all([
         taskService.getTasks(),
         userService.getUsers(),
@@ -313,12 +391,102 @@ export default function App() {
     }
   };
 
+  const handleRegistrationSuccess = async (user: User, team: Team) => {
+    setCurrentUser(user);
+    setCurrentTeam(team);
+    setTeams([team]);
+    setIsAuthenticated(true);
+    setAuthScreen('login');
+    setIsLoading(true);
+
+    // Start session monitoring
+    sessionMonitor.start(
+      (timeRemaining) => {
+        setTimeoutSecondsRemaining(timeRemaining);
+        setIsTimeoutWarningOpen(true);
+      },
+      () => {
+        handleSessionExpired();
+      }
+    );
+
+    // Fetch initial data (will be empty for new team)
+    try {
+      const [tasksData, usersData, projectsData, risksData, issuesData] = await Promise.all([
+        taskService.getTasks(),
+        userService.getUsers(),
+        projectService.getProjects(),
+        riskService.getRisks(),
+        issueService.getIssues(),
+      ]);
+
+      setTasks(tasksData);
+      setUsers(usersData);
+      setProjects(projectsData);
+      setRisks(risksData);
+      setIssues(issuesData);
+    } catch (err) {
+      console.error('Failed to fetch data after registration:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleInvitationSuccess = async (user: User, team: Team) => {
+    setCurrentUser(user);
+    setCurrentTeam(team);
+    setTeams([team]); // Will be updated by checkSession
+    setIsAuthenticated(true);
+    setAuthScreen('login');
+    setInvitationToken(null);
+    setIsLoading(true);
+
+    // Start session monitoring
+    sessionMonitor.start(
+      (timeRemaining) => {
+        setTimeoutSecondsRemaining(timeRemaining);
+        setIsTimeoutWarningOpen(true);
+      },
+      () => {
+        handleSessionExpired();
+      }
+    );
+
+    // Fetch data and update teams list
+    try {
+      const sessionResponse = await authService.checkSession();
+      if (sessionResponse.teams) {
+        setTeams(sessionResponse.teams);
+      }
+
+      const [tasksData, usersData, projectsData, risksData, issuesData] = await Promise.all([
+        taskService.getTasks(),
+        userService.getUsers(),
+        projectService.getProjects(),
+        riskService.getRisks(),
+        issueService.getIssues(),
+      ]);
+
+      setTasks(tasksData);
+      setUsers(usersData);
+      setProjects(projectsData);
+      setRisks(risksData);
+      setIssues(issuesData);
+    } catch (err) {
+      console.error('Failed to fetch data after invitation accept:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleLogout = async () => {
     // Stop session monitoring
     sessionMonitor.stop();
 
     await authService.logout();
     setCurrentUser(null);
+    setCurrentTeam(null);
+    setTeams([]);
     setIsAuthenticated(false);
     setIsTimeoutWarningOpen(false);
     setTasks([]);
@@ -326,12 +494,15 @@ export default function App() {
     setProjects([]);
     setRisks([]);
     setIssues([]);
+    setAuthScreen('login');
   };
 
   const handleSessionExpired = async () => {
     // Session expired - clean logout without API call
     sessionMonitor.stop();
     setCurrentUser(null);
+    setCurrentTeam(null);
+    setTeams([]);
     setIsAuthenticated(false);
     setIsTimeoutWarningOpen(false);
     setTasks([]);
@@ -410,6 +581,14 @@ export default function App() {
             onProfileUpdate={handleUserUpdate}
           />
         ) : null;
+      case 'team-settings':
+        return currentTeam && currentUser ? (
+          <TeamSettingsView
+            team={currentTeam}
+            currentUser={currentUser}
+            onTeamUpdate={handleTeamUpdate}
+          />
+        ) : null;
       default:
         return <DashboardView tasks={filteredTasks} users={users} projects={projects} />;
     }
@@ -418,7 +597,7 @@ export default function App() {
   const blockedTasksCount = filteredTasks.filter((t: Task) => t.isBlocked).length;
 
   // Show loading state
-  if (isLoading) {
+  if (isLoading && !invitationToken) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50">
         <div className="text-center">
@@ -430,11 +609,11 @@ export default function App() {
   }
 
   // Show error state
-  if (error) {
+  if (error && !invitationToken) {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-50">
         <div className="max-w-md text-center p-6 bg-white rounded-lg shadow-lg">
-          <div className="text-red-500 text-5xl mb-4">⚠️</div>
+          <div className="text-red-500 text-5xl mb-4">&#9888;</div>
           <h2 className="text-xl font-semibold mb-2">Connection Error</h2>
           <p className="text-gray-600 mb-4">{error}</p>
           <Button onClick={() => window.location.reload()}>Retry</Button>
@@ -443,9 +622,36 @@ export default function App() {
     );
   }
 
-  // Show login screen if not authenticated
+  // Show auth screens if not authenticated
   if (!isAuthenticated) {
-    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+    if (authScreen === 'invitation' && invitationToken) {
+      return (
+        <InvitationAcceptScreen
+          token={invitationToken}
+          onAcceptSuccess={handleInvitationSuccess}
+          onBackToLogin={() => {
+            setInvitationToken(null);
+            setAuthScreen('login');
+          }}
+        />
+      );
+    }
+
+    if (authScreen === 'register') {
+      return (
+        <RegistrationScreen
+          onRegistrationSuccess={handleRegistrationSuccess}
+          onBackToLogin={() => setAuthScreen('login')}
+        />
+      );
+    }
+
+    return (
+      <LoginScreen
+        onLoginSuccess={handleLoginSuccess}
+        onRegisterClick={() => setAuthScreen('register')}
+      />
+    );
   }
 
   return (
@@ -478,6 +684,19 @@ export default function App() {
           </button>
         </div>
 
+        {/* Team Switcher */}
+        {currentTeam && (
+          <TeamSwitcher
+            currentTeam={currentTeam}
+            teams={teams}
+            onTeamSwitch={handleTeamSwitch}
+            onTeamSettingsClick={() => {
+              setCurrentView('team-settings');
+              setIsSidebarOpen(false);
+            }}
+          />
+        )}
+
         {/* View Mode Toggle */}
         <ViewModeToggle viewMode={viewMode} onViewModeChange={setViewMode} />
 
@@ -504,7 +723,9 @@ export default function App() {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-1">
-          {navigationItems.map((item) => {
+          {navigationItems
+            .filter((item) => item.id !== 'team-settings') // Team settings is accessed via TeamSwitcher
+            .map((item) => {
             const Icon = item.icon;
             const isActive = currentView === item.id;
 
@@ -609,10 +830,12 @@ export default function App() {
             </div>
           </div>
 
-          <Button onClick={handleCreateTask}>
-            <Plus className="w-4 h-4 mr-2" />
-            New Task
-          </Button>
+          {currentView !== 'team-settings' && (
+            <Button onClick={handleCreateTask}>
+              <Plus className="w-4 h-4 mr-2" />
+              New Task
+            </Button>
+          )}
         </header>
 
         {/* View Content */}
