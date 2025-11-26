@@ -4,7 +4,7 @@ services:
     env: python
     region: oregon
     plan: free
-    buildCommand: 'pip install -r requirements-postgres.txt && npm install && npm run build'
+    buildCommand: 'pip install -r requirements-postgres.txt && npm install && npm run build && cd backend && python migrate_to_multitenancy.py'
     startCommand: 'python run.py'
     envVars:
       - key: PYTHON_VERSION
