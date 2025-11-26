@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/
 import { Input } from './ui/input';
 import { PasswordInput } from './ui/password-input';
 import { Label } from './ui/label';
+import { Checkbox } from './ui/checkbox';
+import { Info } from 'lucide-react';
+import { toast } from 'sonner';
 import * as authService from '../services/auth';
 import logo from '../assets/logo/project-goat-logo.svg';
 
@@ -17,6 +20,7 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,8 +48,8 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-4 text-center">
+      <Card className="w-full max-w-md shadow-lg">
+        <CardHeader className="space-y-6 text-center">
           <div className="flex justify-center">
             <img src={logo} alt="ProjectGoat Logo" className="h-32 w-auto max-w-xs object-contain" />
           </div>
@@ -54,45 +58,77 @@ export function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="sarah@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={isLoading}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <PasswordInput
-                id="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={isLoading}
-              />
-            </div>
-
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
-                {error}
+            <div className="max-w-sm mx-auto w-full space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="sarah@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
               </div>
-            )}
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Signing in...' : 'Sign In'}
-            </Button>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <PasswordInput
+                  id="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
+              </div>
 
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-gray-700">
-              <p className="font-semibold mb-1">Default credentials:</p>
-              <p>Email: sarah@example.com</p>
-              <p>Password: password123</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="remember"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  />
+                  <Label htmlFor="remember" className="text-sm cursor-pointer font-normal">
+                    Remember me
+                  </Label>
+                </div>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="text-sm px-0 h-auto"
+                  onClick={() => toast.info('Password reset not implemented yet')}
+                >
+                  Forgot password?
+                </Button>
+              </div>
+
+              {error && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                  {error}
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                className="w-full bg-[#01782B] hover:bg-[#016123] text-white"
+                disabled={isLoading}
+              >
+                {isLoading ? 'Signing in...' : 'Sign In'}
+              </Button>
+
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex gap-2">
+                  <Info className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-gray-700 mb-1">Demo credentials:</p>
+                    <p className="text-xs text-gray-600">Email: sarah@example.com</p>
+                    <p className="text-xs text-gray-600">Password: password123</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </form>
         </CardContent>

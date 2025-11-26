@@ -195,6 +195,13 @@ Quick deployment steps:
 
 Comprehensive documentation is available in the `docs/` directory:
 
+### Deployment Strategy
+
+**📋 [Complete Deployment Strategy](docs/DEPLOYMENT-STRATEGY.md)** - Executive summary and overview
+
+- [Production Deployment Planning](docs/guides/production-deployment-planning.md) - Platform comparisons, costs, and web hosting strategy
+- [Mobile Strategy](docs/guides/mobile-strategy.md) - PWA, Capacitor, and iOS App Store deployment
+
 ### Guides
 
 - [Deployment Guide](docs/guides/deployment.md) - Deployment procedures and configuration
